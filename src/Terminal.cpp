@@ -80,8 +80,9 @@ void Terminal::handleReadCommand(const char* args) {
     }
     
     // Parse address
-    uint16_t address = parseHexAddress(args);
-    if (address == 0xFFFF) {
+    bool parseSuccess;
+    uint16_t address = parseHexAddress(args, parseSuccess);
+    if (!parseSuccess) {
         printError("Invalid address format. Use hex (e.g., 0x01FF)");
         return;
     }
@@ -128,8 +129,9 @@ void Terminal::handleWriteCommand(const char* args) {
     }
     
     // Parse address
-    uint16_t address = parseHexAddress(args);
-    if (address == 0xFFFF) {
+    bool parseSuccess;
+    uint16_t address = parseHexAddress(args, parseSuccess);
+    if (!parseSuccess) {
         printError("Invalid address format. Use hex (e.g., 0x01FF)");
         return;
     }
@@ -142,8 +144,8 @@ void Terminal::handleWriteCommand(const char* args) {
     }
     valueStr++; // Skip the space
     
-    uint8_t value = parseHexByte(valueStr);
-    if (value == 0xFF) {
+    uint8_t value = parseHexByte(valueStr, parseSuccess);
+    if (!parseSuccess) {
         printError("Invalid value format. Use hex (e.g., 0xC0)");
         return;
     }
@@ -180,18 +182,50 @@ void Terminal::printError(const char* message) {
     Serial.println(message);
 }
 
-uint16_t Terminal::parseHexAddress(const char* str) {
-    if (!str || strncmp(str, "0x", 2) != 0) {
-        return 0xFFFF;
+uint16_t Terminal::parseHexAddress(const char* str, bool& success) {
+    success = false;
+    
+    if (!str) {
+        return 0;
     }
-    return strtoul(str, nullptr, 16);
+    
+    // Skip any leading whitespace
+    while (*str == ' ') str++;
+    
+    if (strncmp(str, "0x", 2) != 0) {
+        return 0;
+    }
+    
+    char* endptr;
+    unsigned long value = strtoul(str, &endptr, 16);
+    
+    // Check if parsing was successful and value is within 16-bit range
+    if (*endptr == '\0' || *endptr == ' ') {
+        if (value <= 0xFFFF) {
+            success = true;
+            return static_cast<uint16_t>(value);
+        }
+    }
+    
+    return 0;
 }
 
-uint8_t Terminal::parseHexByte(const char* str) {
+uint8_t Terminal::parseHexByte(const char* str, bool& success) {
+    success = false;
     if (!str || strncmp(str, "0x", 2) != 0) {
-        return 0xFF;
+        return 0;
     }
-    return strtoul(str, nullptr, 16);
+    
+    char* endptr;
+    unsigned long value = strtoul(str, &endptr, 16);
+    
+    // Check if parsing was successful and value is within byte range
+    if (*endptr == '\0' && value <= 0xFF) {
+        success = true;
+        return static_cast<uint8_t>(value);
+    }
+    
+    return 0;
 }
 
 int Terminal::parseDecimal(const char* str) {

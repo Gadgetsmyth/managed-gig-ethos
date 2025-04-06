@@ -31,8 +31,8 @@ private:
     void processCommand();
     void printPrompt();
     void printError(const char* message);
-    uint16_t parseHexAddress(const char* str);
-    uint8_t parseHexByte(const char* str);
+    uint16_t parseHexAddress(const char* str, bool& success);
+    uint8_t parseHexByte(const char* str, bool& success);
     int parseDecimal(const char* str);
 };
 
