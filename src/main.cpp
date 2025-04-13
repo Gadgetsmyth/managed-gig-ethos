@@ -1,10 +1,13 @@
 #include <Arduino.h>
 #include "SpiController.h"
+#include "MdcMdioController.h"
 #include "Terminal.h"
 
 // Create SPI controller and Terminal instances
 SpiController spiController;
-Terminal terminal(spiController);
+// MDC on PC4 (A4), MDIO on PC5 (A5)
+MdcMdioController mdcController(A5, A4);
+Terminal terminal(spiController, mdcController);
 
 void setup()
 {
@@ -14,8 +17,13 @@ void setup()
     // Initialize SPI
     spiController.begin();
     
+    // Initialize MDC/MDIO
+    mdcController.begin();
+
     // Initialize terminal
     terminal.begin();
+
+    mdcController.initialize_dual_phy();
 }
 
 void loop()

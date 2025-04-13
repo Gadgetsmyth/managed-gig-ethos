@@ -3,13 +3,14 @@
 
 #include <Arduino.h>
 #include "SpiController.h"
+#include "MdcMdioController.h"
 
 // Maximum length of command input
 const int MAX_COMMAND_LENGTH = 32;
 
 class Terminal {
 public:
-    Terminal(SpiController& spi);
+    Terminal(SpiController& spi, MdcMdioController& mdc);
     
     // Initialize terminal
     void begin();
@@ -20,10 +21,14 @@ public:
     // Command handlers
     void handleReadCommand(const char* args);
     void handleWriteCommand(const char* args);
+    void handleReadMdcCommand(const char* args);
+    void handleWriteMdcCommand(const char* args);
+    void handleScanMdcCommand(const char* args);
     void handleHelpCommand();
 
 private:
     SpiController& spiController;
+    MdcMdioController& mdcController;
     char inputBuffer[MAX_COMMAND_LENGTH];
     int inputIndex;
     
