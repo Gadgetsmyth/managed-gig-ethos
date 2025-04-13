@@ -57,8 +57,8 @@ void MdcMdioController::initialize_dual_phy() {
     // patch uses 0x0011
     // the high nibble is for the rx pair, the low is the tx pair, the switch compentsates the tx already, but the rx needs more delay, 
     // we also need to clear bit 11, the default field is 0x0800 we change it to 0x0031
-    // TODO: TUNE THIS NUMBER BETTER< THIS LINKS UP AND TALKS< BUT SEEMS UNSTABLE
-    writeMdc(0x00, 0x14, 0x0030);
+    // TODO: TUNE THIS NUMBER BETTER< THIS LINKS UP AND TALKS< but requires further testing
+    writeMdc(0x00, 0x14, 0x0031);
     // reset the extended field
     writeMdc(0x00, 0x1f, 0x0000);
 
