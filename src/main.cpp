@@ -12,11 +12,11 @@ Terminal terminal(spiController, mdcController);
 void setup()
 {
     // Initialize serial communication at 9600 baud
-    Serial.begin(9600);
-    
+    Serial.begin(57600);
+
     // Initialize SPI
     spiController.begin();
-    
+
     // Initialize MDC/MDIO
     mdcController.begin();
 
