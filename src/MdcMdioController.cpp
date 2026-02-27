@@ -1,5 +1,7 @@
 #include "MdcMdioController.h"
 
+#define DELAY_US 100
+
 MdcMdioController::MdcMdioController(int mdcPin, int mdioPin)
     : mdcPin(mdcPin), mdioPin(mdioPin)
 {
@@ -201,9 +203,9 @@ void MdcMdioController::initialize_dual_phy()
 void MdcMdioController::pulse_mdc(void)
 {
     digitalWrite(mdcPin, 0);
-    delay(1);
+    delayMicroseconds(DELAY_US);
     digitalWrite(mdcPin, 1);
-    delay(1);
+    delayMicroseconds(DELAY_US);
 }
 
 void MdcMdioController::startPreamble()
@@ -213,9 +215,9 @@ void MdcMdioController::startPreamble()
     {
         digitalWrite(mdioPin, HIGH);
         digitalWrite(mdcPin, LOW);
-        delayMicroseconds(1);
+        delayMicroseconds(DELAY_US);
         digitalWrite(mdcPin, HIGH);
-        delayMicroseconds(1);
+        delayMicroseconds(DELAY_US);
     }
 }
 
@@ -223,9 +225,9 @@ void MdcMdioController::writeBit(bool bit)
 {
     digitalWrite(mdioPin, bit);
     digitalWrite(mdcPin, LOW);
-    delayMicroseconds(1);
+    delayMicroseconds(DELAY_US);
     digitalWrite(mdcPin, HIGH);
-    delayMicroseconds(1);
+    delayMicroseconds(DELAY_US);
 }
 
 bool MdcMdioController::readBit()
@@ -233,9 +235,9 @@ bool MdcMdioController::readBit()
 
     bool bit = digitalRead(mdioPin);
     digitalWrite(mdcPin, LOW);
-    delayMicroseconds(1);
+    delayMicroseconds(DELAY_US);
     digitalWrite(mdcPin, HIGH);
-    delayMicroseconds(1);
+    delayMicroseconds(DELAY_US);
     return bit;
 }
 
@@ -246,17 +248,17 @@ void MdcMdioController::turnaround(bool isRead)
         // For read: MDIO goes high-Z, then input
         pinMode(mdioPin, INPUT);
         digitalWrite(mdcPin, LOW);
-        delayMicroseconds(1);
+        delayMicroseconds(DELAY_US);
         digitalWrite(mdcPin, HIGH);
-        delayMicroseconds(1);
+        delayMicroseconds(DELAY_US);
     }
     else
     {
         // For write: MDIO stays as output
         digitalWrite(mdcPin, LOW);
-        delayMicroseconds(1);
+        delayMicroseconds(DELAY_US);
         digitalWrite(mdcPin, HIGH);
-        delayMicroseconds(1);
+        delayMicroseconds(DELAY_US);
     }
 }
 
