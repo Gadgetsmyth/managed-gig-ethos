@@ -1,3 +1,21 @@
+// #include <Arduino.h>
+
+// void setup()
+// {
+//     pinMode(0, OUTPUT);
+//     pinMode(1, OUTPUT);
+// }
+
+// void loop()
+// {
+//     digitalWrite(0, HIGH);
+//     digitalWrite(1, HIGH);
+//     delay(100);
+//     digitalWrite(0, LOW);
+//     digitalWrite(1, LOW);
+//     delay(100);
+// }
+
 #include <Arduino.h>
 #include "SpiController.h"
 #include "MdcMdioController.h"
@@ -5,7 +23,7 @@
 
 // Create SPI controller and Terminal instances
 SpiController spiController;
-// MDC on PC4 (A4), MDIO on PC5 (A5)
+// MDC on PC5 (A5), MDIO on PC4 (A4)
 MdcMdioController mdcController(A5, A4);
 Terminal terminal(spiController, mdcController);
 
