@@ -3,27 +3,28 @@
 
 #include <Arduino.h>
 
-class MdcMdioController {
+class MdcMdioController
+{
 public:
     // Constructor
     MdcMdioController(int mdcPin, int mdioPin);
-    
+
     // Initialize MDC/MDIO pins
     void begin();
-    
+
     // MDC/MDIO read/write functions
     uint16_t readMdc(uint8_t phyAddr, uint8_t regAddr);
     void writeMdc(uint8_t phyAddr, uint8_t regAddr, uint16_t data);
     void writeMdcMask(uint8_t phyAddr, uint8_t regAddr, uint16_t data, uint16_t mask);
-    void initialize_dual_phy();   
+    void initialize_dual_phy();
 
 private:
     // Pin configuration
     const int mdcPin;
     const int mdioPin;
-    
+
     // Helper functions for MDC/MDIO protocol
-    void pulse_mdc(void);    
+    void clockBit(bool mdioValue);
     void startPreamble();
     void writeBit(bool bit);
     bool readBit();
@@ -32,4 +33,4 @@ private:
     void writeData(uint16_t data);
 };
 
-#endif // MDCMDIOCONTROLLER_H 
+#endif // MDCMDIOCONTROLLER_H

@@ -30,21 +30,17 @@ const int resetPin = A1;
 
 void setup()
 {
-    pinMode(resetPin, OUTPUT);
     digitalWrite(resetPin, LOW);
+    pinMode(resetPin, OUTPUT);
     // Initialize serial communication at 9600 baud
     Serial.begin(57600);
 
-    // Initialize SPI
-    spiController.begin();
-
     // delay for the clock to be stable
-    delay(10);
-
+    delay(250);
 
     digitalWrite(resetPin, HIGH);
     // delay according to dual phy reset data sheet requirements
-    delay(110);
+    delay(250);
     // Initialize MDC/MDIO
     mdcController.begin();
 
@@ -52,6 +48,11 @@ void setup()
     terminal.begin();
 
     mdcController.initialize_dual_phy();
+
+    delay(250);
+
+    // Initialize SPI
+    spiController.begin();
 }
 
 void loop()

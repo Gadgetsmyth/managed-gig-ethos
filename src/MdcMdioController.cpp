@@ -1,6 +1,6 @@
 #include "MdcMdioController.h"
 
-#define DELAY_US 100
+#define DELAY_US 10
 
 MdcMdioController::MdcMdioController(int mdcPin, int mdioPin)
     : mdcPin(mdcPin), mdioPin(mdioPin)
@@ -9,13 +9,13 @@ MdcMdioController::MdcMdioController(int mdcPin, int mdioPin)
 
 void MdcMdioController::begin()
 {
+    // Initialize pins to low state
+    digitalWrite(mdcPin, HIGH);
+    digitalWrite(mdioPin, HIGH);
+
     // Configure MDC and MDIO pins as outputs
     pinMode(mdcPin, OUTPUT);
     pinMode(mdioPin, OUTPUT);
-
-    // Initialize pins to low state
-    //// digitalWrite(mdcPin, LOW);
-    //// digitalWrite(mdioPin, LOW);
 
     // For ATmega328P, ensure we're using the correct port registers
     // PC4 (A4) and PC5 (A5) are on PORTC
@@ -191,20 +191,12 @@ void MdcMdioController::initialize_dual_phy()
     writeMdc(0x00, 0x16, 0x3200);
 }
 
-/*! Generates a rising edge pulse on IP175 MDC */
-// void pulse_mdc(void)
-// {
-//     digitalWrite(mdcPin, 0);
-//     delay(1);
-//     digitalWrite(mdcPin, 1);
-//     delay(1);
-// }
-
-void MdcMdioController::pulse_mdc(void)
+void MdcMdioController::clockBit(bool mdioValue)
 {
-    digitalWrite(mdcPin, 0);
+    digitalWrite(mdcPin, LOW);
+    digitalWrite(mdioPin, mdioValue);
     delayMicroseconds(DELAY_US);
-    digitalWrite(mdcPin, 1);
+    digitalWrite(mdcPin, HIGH);
     delayMicroseconds(DELAY_US);
 }
 
@@ -292,152 +284,108 @@ uint16_t MdcMdioController::readMdc(uint8_t phyAddr, uint8_t regAddr)
     uint8_t byte;
     uint16_t word, data;
 
-    // void (*pulse_mdc)(void);
-
-    // pulse_mdc = pulse_mdcip;
-
     /* MDIO pin is output */
     pinMode(mdioPin, OUTPUT);
 
-    digitalWrite(mdioPin, 1);
+    // Preamble
     for (byte = 0; byte < 32; byte++)
-        pulse_mdc();
+        clockBit(HIGH);
 
-    // // preamble
-    // pulse_mdc();
-    // digitalWrite(mdioPin, 1);
-    // pulse_mdc();
+    /* Stat code (01b) */
+    clockBit(LOW);
+    clockBit(HIGH);
 
-    /* Stat code */
-    digitalWrite(mdioPin, 0);
-    pulse_mdc();
-    digitalWrite(mdioPin, 1);
-    pulse_mdc();
-
-    /* Read OP Code */
-    digitalWrite(mdioPin, 1);
-    pulse_mdc();
-    digitalWrite(mdioPin, 0);
-    pulse_mdc();
+    /* Read OP Code (10b) */
+    clockBit(HIGH);
+    clockBit(LOW);
 
     /* PHY address - 5 bits */
-    for (byte = 0x10; byte != 0;)
+    for (byte = 0x10; byte != 0; byte = byte >> 1)
     {
         if (byte & phyAddr)
-            digitalWrite(mdioPin, 1);
+            clockBit(HIGH);
         else
-            digitalWrite(mdioPin, 0);
-
-        pulse_mdc();
-
-        byte = byte >> 1;
+            clockBit(LOW);
     }
+
     /* REG address - 5 bits */
-    for (byte = 0x10; byte != 0;)
+    for (byte = 0x10; byte != 0; byte = byte >> 1)
     {
         if (byte & regAddr)
-            digitalWrite(mdioPin, 1);
+            clockBit(HIGH);
         else
-            digitalWrite(mdioPin, 0);
-
-        pulse_mdc();
-
-        byte = byte >> 1;
+            clockBit(LOW);
     }
+
     /* Turn around bits */
-    /* MDIO now is input */
     pinMode(mdioPin, INPUT);
-    pulse_mdc();
-    pulse_mdc();
+
+    // TA bit 1 - high Z (controller releases, pullup holds high)
+    digitalWrite(mdcPin, LOW);
+    delayMicroseconds(DELAY_US);
+    digitalWrite(mdcPin, HIGH);
+    delayMicroseconds(DELAY_US);
+
+    // TA bit 2 - PHY drives LOW to acknowledge (TODO: Actually look for acknowledgment and have error if not)
+    digitalWrite(mdcPin, LOW);
+    delayMicroseconds(DELAY_US);
+    digitalWrite(mdcPin, HIGH);
+    delayMicroseconds(DELAY_US);
+
     /* Data - 16 bits */
     data = 0;
-    for (word = 0x8000; word != 0;)
+    for (word = 0x8000; word != 0; word = word >> 1)
     {
+        digitalWrite(mdcPin, LOW);
+        delayMicroseconds(DELAY_US / 2);
 
         if (digitalRead(mdioPin))
             data |= word;
 
-        pulse_mdc();
-
-        word = word >> 1;
+        delayMicroseconds(DELAY_US / 2);
+        digitalWrite(mdcPin, HIGH);
+        delayMicroseconds(DELAY_US);
     }
 
-    /* This is needed for some reason... */
-    pulse_mdc();
-    /* Stay in 0 state */
-    //  MDCIP = 0;
+    // Return MDIO to output and idle high
+    pinMode(mdioPin, OUTPUT);
+    digitalWrite(mdioPin, HIGH);
 
     return data;
 }
 
 void MdcMdioController::writeMdc(uint8_t phyAddr, uint8_t regAddr, uint16_t data)
 {
-    uint8_t byte;
-    uint16_t word;
-
-    // void (*pulse_mdc)(void);
-    // pulse_mdc;
-
-    /* MDIO pin is output */
     pinMode(mdioPin, OUTPUT);
 
-    digitalWrite(mdioPin, 1);
-    for (byte = 0; byte < 32; byte++)
-        pulse_mdc();
+    // Preamble - 32 bits of HIGH
+    for (uint8_t preambleBit = 0; preambleBit < 32; preambleBit++)
+        clockBit(HIGH);
 
-    // // preamble
-    // pulse_mdc();
-    // digitalWrite(mdioPin, 1);
-    // pulse_mdc();
+    // Start code (01b)
+    clockBit(LOW);
+    clockBit(HIGH);
 
-    /* Stat code */
-    digitalWrite(mdioPin, 0);
-    pulse_mdc();
-    digitalWrite(mdioPin, 1);
-    pulse_mdc();
+    // Write OP code (01b)
+    clockBit(LOW);
+    clockBit(HIGH);
 
-    /* Write OP Code */
-    digitalWrite(mdioPin, 0);
-    pulse_mdc();
-    digitalWrite(mdioPin, 1);
-    pulse_mdc();
+    // PHY address - 5 bits, MSB first
+    for (uint8_t addressBit = 0x10; addressBit != 0; addressBit = addressBit >> 1)
+        clockBit(addressBit & phyAddr ? HIGH : LOW);
 
-    /* PHY address - 5 bits */
-    for (byte = 0x10; byte != 0; byte = byte >> 1)
-    {
-        if (byte & phyAddr)
-            digitalWrite(mdioPin, 1);
-        else
-            digitalWrite(mdioPin, 0);
-        pulse_mdc();
-    }
-    /* REG address - 5 bits */
-    for (byte = 0x10; byte != 0; byte = byte >> 1)
-    {
-        if (byte & regAddr)
-            digitalWrite(mdioPin, 1);
-        else
-            digitalWrite(mdioPin, 0);
+    // Register address - 5 bits, MSB first
+    for (uint8_t registerBit = 0x10; registerBit != 0; registerBit = registerBit >> 1)
+        clockBit(registerBit & regAddr ? HIGH : LOW);
 
-        pulse_mdc();
-    }
-    /* Turn around bits */
-    digitalWrite(mdioPin, 1);
-    pulse_mdc();
-    digitalWrite(mdioPin, 0);
-    pulse_mdc();
+    // Turnaround bits (10b)
+    clockBit(HIGH);
+    clockBit(LOW);
 
-    /* Data - 16 bits */
-    for (word = 0x8000; word != 0; word = word >> 1)
-    {
-        if (word & data)
-            digitalWrite(mdioPin, 1);
-        else
-            digitalWrite(mdioPin, 0);
+    // Data - 16 bits, MSB first
+    for (uint16_t dataBit = 0x8000; dataBit != 0; dataBit = dataBit >> 1)
+        clockBit(dataBit & data ? HIGH : LOW);
 
-        pulse_mdc();
-    }
-
-    /* This is needed for some reason... */
-    pulse_mdc();
+    // Return MDIO to idle high
+    digitalWrite(mdioPin, HIGH);
 }
