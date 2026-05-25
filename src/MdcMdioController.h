@@ -16,7 +16,7 @@ public:
     uint16_t readMdc(uint8_t phyAddr, uint8_t regAddr);
     void writeMdc(uint8_t phyAddr, uint8_t regAddr, uint16_t data);
     void writeMdcMask(uint8_t phyAddr, uint8_t regAddr, uint16_t data, uint16_t mask);
-    void initialize_dual_phy();
+    void initialize_dual_phy(uint8_t address = 0x00);
 
 private:
     // Pin configuration

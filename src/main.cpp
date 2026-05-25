@@ -47,7 +47,9 @@ void setup()
     // Initialize terminal
     terminal.begin();
 
-    mdcController.initialize_dual_phy();
+    mdcController.initialize_dual_phy(0x00);
+    mdcController.initialize_dual_phy(0x10);
+    
 
     delay(250);
 
