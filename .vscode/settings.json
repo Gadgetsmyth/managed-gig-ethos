@@ -4,8 +4,8 @@
 	"[c]": { "editor.defaultFormatter": "ms-vscode.cpptools" },
 	"[cpp]": { "editor.defaultFormatter": "ms-vscode.cpptools" },
 
-	// Formatting: clang-format, using the .clang-format file ("file" style).
-	"C_Cpp.formatting": "clangFormat",
+	// Formatting: clang-format ("default" engine), using the .clang-format file ("file" style).
+	"C_Cpp.formatting": "default",
 	"C_Cpp.clang_format_style": "file",
 
 	// In-editor clang-tidy is OFF: Clang cannot parse the avr-gcc framework headers
