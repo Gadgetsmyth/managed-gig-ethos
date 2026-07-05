@@ -3,3 +3,7 @@
 .vscode/c_cpp_properties.json
 .vscode/launch.json
 .vscode/ipch
+
+# clangd: machine-specific compilation DB (regenerate with `pio run -t compiledb`) and index cache
+compile_commands.json
+.cache/

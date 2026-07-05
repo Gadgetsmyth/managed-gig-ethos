@@ -1,0 +1,21 @@
+# Formatting standard for managed-gig-ethos firmware.
+# Indentation is TABS (width 4). clang-format handles formatting only; naming is by hand.
+---
+Language: Cpp
+BasedOnStyle: LLVM
+UseTab: Always
+TabWidth: 4
+IndentWidth: 4
+ContinuationIndentWidth: 4
+# Access specifiers sit flush-left (offset = -IndentWidth) so nothing is space-indented.
+AccessModifierOffset: -4
+# Indent wrapped arguments with tabs instead of space-aligning them to the open bracket.
+AlignAfterOpenBracket: DontAlign
+AlignOperands: DontAlign
+BreakBeforeBraces: Attach
+ColumnLimit: 100
+PointerAlignment: Left
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+SortIncludes: false
