@@ -1,391 +1,257 @@
 #include "MdcMdioController.h"
 
-#define DELAY_US 10
+// Half-period of the bit-banged MDC clock, in microseconds.
+static constexpr uint8_t DELAY_US = 10;
 
-MdcMdioController::MdcMdioController(int mdcPin, int mdioPin)
-    : mdcPin(mdcPin), mdioPin(mdioPin)
-{
+MdcMdioController::MdcMdioController(int mdcPin, int mdioPin) : mdcPin(mdcPin), mdioPin(mdioPin) {}
+
+void MdcMdioController::begin() {
+	// Idle both lines high, then drive them as outputs.
+	digitalWrite(mdcPin, HIGH);
+	digitalWrite(mdioPin, HIGH);
+	pinMode(mdcPin, OUTPUT);
+	pinMode(mdioPin, OUTPUT);
 }
 
-void MdcMdioController::begin()
-{
-    // Initialize pins to low state
-    digitalWrite(mdcPin, HIGH);
-    digitalWrite(mdioPin, HIGH);
+void MdcMdioController::initializeDualPhy(uint8_t phyAddr) {
+	// set standard page section
+	writeRegister(phyAddr, 0x1f, 0x0000);
+	// hardware bringup
+	// set broadcast mode. ( so we don't have to write both phys)
+	writeRegister(phyAddr, 0x16, 0x3201);
 
-    // Configure MDC and MDIO pins as outputs
-    pinMode(mdcPin, OUTPUT);
-    pinMode(mdioPin, OUTPUT);
+	// switch to the test page
+	writeRegister(phyAddr, 0x1f, 0x2A30);
 
-    // For ATmega328P, ensure we're using the correct port registers
-    // PC4 (A4) and PC5 (A5) are on PORTC
-    // No additional configuration needed as Arduino's digitalWrite/digitalRead
-    // functions handle the port mapping correctly
+	writeRegisterMasked(phyAddr, 0x18, 0x0000, 0x0400); // clear bias bit for 1000BT distortion
+	writeRegisterMasked(phyAddr, 0x05, 0x0c00, 0x0e00); // optimize pre-emphasis for 100basetx
+	writeRegisterMasked(phyAddr, 0x08, 0x8000, 0x8000); // token ring enable
 
-    // initialize the dual phy!
-    // phy setup commands , needs to be done on both halves.
-    // or set broadcast mode register and do it on both at the same time, that's better probably.
-    // set rgmii mode set bit 12 register 23 (0x17, default is 0x2000)
+	// change to token ring page
+	writeRegister(phyAddr, 0x1f, 0x52B5);
+
+	// Token-ring patch: each group programs registers 18/17/16 (0x12/0x11/0x10).
+	writeRegister(phyAddr, 0x12, 0x0068);
+	writeRegister(phyAddr, 0x11, 0x8980);
+	writeRegister(phyAddr, 0x10, 0x8f90);
+
+	writeRegister(phyAddr, 0x12, 0x0000);
+	writeRegister(phyAddr, 0x11, 0x0003);
+	writeRegister(phyAddr, 0x10, 0x8796);
+
+	writeRegister(phyAddr, 0x12, 0x0050);
+	writeRegister(phyAddr, 0x11, 0x100f);
+	writeRegister(phyAddr, 0x10, 0x87fa);
+
+	writeRegister(phyAddr, 0x12, 0x0012);
+	writeRegister(phyAddr, 0x11, 0xb002);
+	writeRegister(phyAddr, 0x10, 0x8f82);
+
+	writeRegister(phyAddr, 0x12, 0x0000);
+	writeRegister(phyAddr, 0x11, 0x0004);
+	writeRegister(phyAddr, 0x10, 0x9686);
+
+	writeRegister(phyAddr, 0x12, 0x00d2);
+	writeRegister(phyAddr, 0x11, 0xc46f);
+	writeRegister(phyAddr, 0x10, 0x968c);
+
+	writeRegister(phyAddr, 0x12, 0x0000);
+	writeRegister(phyAddr, 0x11, 0x0620);
+	writeRegister(phyAddr, 0x10, 0x97a2);
+
+	writeRegister(phyAddr, 0x12, 0x00ee);
+	writeRegister(phyAddr, 0x11, 0xffdd);
+	writeRegister(phyAddr, 0x10, 0x96a0);
+
+	writeRegister(phyAddr, 0x12, 0x0007);
+	writeRegister(phyAddr, 0x11, 0x1448);
+	writeRegister(phyAddr, 0x10, 0x96a6);
+
+	writeRegister(phyAddr, 0x12, 0x0013);
+	writeRegister(phyAddr, 0x11, 0x132f);
+	writeRegister(phyAddr, 0x10, 0x96a4);
+
+	writeRegister(phyAddr, 0x12, 0x0000);
+	writeRegister(phyAddr, 0x11, 0x0000);
+	writeRegister(phyAddr, 0x10, 0x96a8);
+
+	writeRegister(phyAddr, 0x12, 0x00c0);
+	writeRegister(phyAddr, 0x11, 0xa028);
+	writeRegister(phyAddr, 0x10, 0x8ffc);
+
+	writeRegister(phyAddr, 0x12, 0x0091);
+	writeRegister(phyAddr, 0x11, 0xb06c);
+	writeRegister(phyAddr, 0x10, 0x8fe8);
+
+	writeRegister(phyAddr, 0x12, 0x0004);
+	writeRegister(phyAddr, 0x11, 0x1600);
+	writeRegister(phyAddr, 0x10, 0x8fea);
+
+	writeRegister(phyAddr, 0x12, 0x00ff);
+	writeRegister(phyAddr, 0x11, 0xfaff);
+	writeRegister(phyAddr, 0x10, 0x8f80);
+
+	writeRegister(phyAddr, 0x12, 0x0090);
+	writeRegister(phyAddr, 0x11, 0x1809);
+	writeRegister(phyAddr, 0x10, 0x8fec);
+
+	writeRegister(phyAddr, 0x12, 0x00b0);
+	writeRegister(phyAddr, 0x11, 0x1007);
+	writeRegister(phyAddr, 0x10, 0x8ffe);
+
+	writeRegister(phyAddr, 0x12, 0x00ee);
+	writeRegister(phyAddr, 0x11, 0xff00);
+	writeRegister(phyAddr, 0x10, 0x96b0);
+
+	writeRegister(phyAddr, 0x12, 0x0000);
+	writeRegister(phyAddr, 0x11, 0x7000);
+	writeRegister(phyAddr, 0x10, 0x96b2);
+
+	writeRegister(phyAddr, 0x12, 0x0000);
+	writeRegister(phyAddr, 0x11, 0x0814);
+	writeRegister(phyAddr, 0x10, 0x96b4);
+
+	// switch to the test page
+	writeRegister(phyAddr, 0x1f, 0x2A30);
+
+	writeRegisterMasked(phyAddr, 0x08, 0x0000, 0x8000); // token ring enable
+
+	// set standard page section
+	writeRegister(phyAddr, 0x1f, 0x0000);
+	// configure the dual phy
+	// set broadcast mode. ( so we don't have to write both phys)
+	writeRegister(phyAddr, 0x16, 0x3201);
+	// do a soft reset
+	writeRegister(phyAddr, 0x00, 0x9040);
+	// set RGMII mode (bit 12 of register 0x17, default 0x2000)
+	writeRegister(phyAddr, 0x17, 0x3000);
+	// soft reset again (set bit 15, default 0x1040)
+	writeRegister(phyAddr, 0x00, 0x9040);
+
+	// TODO: APPLY PRODUCTION PATCH HERE!
+
+	// Adjust the clock control. Set register 0x1F to 2 to map the E2 address space,
+	// remapping registers 16-30 (0x10-0x1E) from the main space.
+	writeRegister(phyAddr, 0x1f, 0x0002);
+	// Register 0x14 in space 2 sets the clock delay: bits 2:0 are the GTX clock delay
+	// and bits 6:4 the RX delay; each step is +0.3ns (min 0.2ns). High nibble is the RX
+	// pair, low nibble the TX pair. The switch already compensates TX, so RX needs more
+	// delay. Bit 11 (default field 0x0800) is also cleared here.
+	// TODO: tune this value further - links up and passes traffic, but needs more testing.
+	writeRegister(phyAddr, 0x14, 0x0042);
+	// reset the extended field
+	writeRegister(phyAddr, 0x1f, 0x0000);
+
+	writeRegister(phyAddr, 0x00, 0x9040);
+	// turn smi duplication back off
+	writeRegister(phyAddr, 0x16, 0x3200);
 }
 
-void MdcMdioController::initialize_dual_phy(uint8_t address = 0x00)
-{
-
-    // set standard page section
-    writeMdc(address, 0x1f, 0x0000);
-    // hardware bringup
-    // set broadcast mode. ( so we don't have to write both phys)
-    writeMdc(address, 0x16, 0x3201);
-
-    // switch to the test page
-    writeMdc(address, 0x1f, 0x2A30);
-
-    writeMdcMask(address, 0x18, 0x0000, 0x0400); // clear bias bit for 1000BT distortion
-    writeMdcMask(address, 0x05, 0x0c00, 0x0e00); // optimize pre-emphasis for 100basetx
-    writeMdcMask(address, 0x08, 0x8000, 0x8000); // token ring enable
-
-    // change to token ring page
-    writeMdc(address, 0x1f, 0x52B5);
-
-    // 18 (0x12) 17 (0x11) 16 (0x10)
-    writeMdc(address, 0x12, 0x0068);
-    writeMdc(address, 0x11, 0x8980);
-    writeMdc(address, 0x10, 0x8f90);
-
-    // 18 (0x12) 17 (0x11) 16 (0x10)
-    writeMdc(address, 0x12, 0x0000);
-    writeMdc(address, 0x11, 0x0003);
-    writeMdc(address, 0x10, 0x8796);
-
-    // 18 (0x12) 17 (0x11) 16 (0x10)
-    writeMdc(address, 0x12, 0x0050);
-    writeMdc(address, 0x11, 0x100f);
-    writeMdc(address, 0x10, 0x87fa);
-
-    // 18 (0x12) 17 (0x11) 16 (0x10)
-    writeMdc(address, 0x12, 0x0012);
-    writeMdc(address, 0x11, 0xb002);
-    writeMdc(address, 0x10, 0x8f82);
-
-    // 18 (0x12) 17 (0x11) 16 (0x10)
-    writeMdc(address, 0x12, 0x0000);
-    writeMdc(address, 0x11, 0x0004);
-    writeMdc(address, 0x10, 0x9686);
-
-    // 18 (0x12) 17 (0x11) 16 (0x10)
-    writeMdc(address, 0x12, 0x00d2);
-    writeMdc(address, 0x11, 0xc46f);
-    writeMdc(address, 0x10, 0x968c);
-
-    // 18 (0x12) 17 (0x11) 16 (0x10)
-    writeMdc(address, 0x12, 0x0000);
-    writeMdc(address, 0x11, 0x0620);
-    writeMdc(address, 0x10, 0x97a2);
-
-    // 18 (0x12) 17 (0x11) 16 (0x10)
-    writeMdc(address, 0x12, 0x00ee);
-    writeMdc(address, 0x11, 0xffdd);
-    writeMdc(address, 0x10, 0x96a0);
-
-    // 18 (0x12) 17 (0x11) 16 (0x10)
-    writeMdc(address, 0x12, 0x0007);
-    writeMdc(address, 0x11, 0x1448);
-    writeMdc(address, 0x10, 0x96a6);
-
-    // 18 (0x12) 17 (0x11) 16 (0x10)
-    writeMdc(address, 0x12, 0x0013);
-    writeMdc(address, 0x11, 0x132f);
-    writeMdc(address, 0x10, 0x96a4);
-
-    // 18 (0x12) 17 (0x11) 16 (0x10)
-    writeMdc(address, 0x12, 0x0000);
-    writeMdc(address, 0x11, 0x0000);
-    writeMdc(address, 0x10, 0x96a8);
-
-    // 18 (0x12) 17 (0x11) 16 (0x10)
-    writeMdc(address, 0x12, 0x00c0);
-    writeMdc(address, 0x11, 0xa028);
-    writeMdc(address, 0x10, 0x8ffc);
-
-    // 18 (0x12) 17 (0x11) 16 (0x10)
-    writeMdc(address, 0x12, 0x0091);
-    writeMdc(address, 0x11, 0xb06c);
-    writeMdc(address, 0x10, 0x8fe8);
-
-    // 18 (0x12) 17 (0x11) 16 (0x10)
-    writeMdc(address, 0x12, 0x0004);
-    writeMdc(address, 0x11, 0x1600);
-    writeMdc(address, 0x10, 0x8fea);
-
-    // 18 (0x12) 17 (0x11) 16 (0x10)
-    writeMdc(address, 0x12, 0x00ff);
-    writeMdc(address, 0x11, 0xfaff);
-    writeMdc(address, 0x10, 0x8f80);
-
-    // 18 (0x12) 17 (0x11) 16 (0x10)
-    writeMdc(address, 0x12, 0x0090);
-    writeMdc(address, 0x11, 0x1809);
-    writeMdc(address, 0x10, 0x8fec);
-
-    // 18 (0x12) 17 (0x11) 16 (0x10)
-    writeMdc(address, 0x12, 0x00b0);
-    writeMdc(address, 0x11, 0x1007);
-    writeMdc(address, 0x10, 0x8ffe);
-
-    // 18 (0x12) 17 (0x11) 16 (0x10)
-    writeMdc(address, 0x12, 0x00ee);
-    writeMdc(address, 0x11, 0xff00);
-    writeMdc(address, 0x10, 0x96b0);
-
-    // 18 (0x12) 17 (0x11) 16 (0x10)
-    writeMdc(address, 0x12, 0x0000);
-    writeMdc(address, 0x11, 0x7000);
-    writeMdc(address, 0x10, 0x96b2);
-
-    // 18 (0x12) 17 (0x11) 16 (0x10)
-    writeMdc(address, 0x12, 0x0000);
-    writeMdc(address, 0x11, 0x0814);
-    writeMdc(address, 0x10, 0x96b4);
-
-    // switch to the test page
-    writeMdc(address, 0x1f, 0x2A30);
-
-    writeMdcMask(address, 0x08, 0x0000, 0x8000); // token ring enable
-
-    // set standard page section
-    writeMdc(address, 0x1f, 0x0000);
-    // configure the dual phy
-    // set broadcast mode. ( so we don't have to write both phys)
-    writeMdc(address, 0x16, 0x3201);
-    // do a soft reset
-    writeMdc(address, 0x00, 0x9040);
-    // set RGMII mode
-    // writemdc address 0x17 0x3000
-    writeMdc(address, 0x17, 0x3000);
-    // soft reset // set bit 15, default is 0x1040
-    // writemdc address 0x00 0x9040
-    writeMdc(address, 0x00, 0x9040);
-
-    // TODO: APPLY PRODUCTION PATCH HERE!
-
-    // adjust the clock control
-    // configure 20E2 and ( set 31 (0x1F) to 2 ( sets the address space to e2) )
-    // this means registers 16 through 30 are remapped from the main space.
-    writeMdc(address, 0x1f, 0x0002);
-    // writemdc 0x00 0x1f 0x0002
-    // write register 20 (0x14 )in space 2, to adjust the clock delay
-    // bits 2:0 are gtx clock delay and bits 6:4 are the same,
-    // pattern increases by .3ns per bit, with a minimum of .2ns
-    // we set it to bit pattern 100 to get 2ns delay,
-    // this means we write 0x0055 to the bit field
-    // patch uses 0x0011
-    // the high nibble is for the rx pair, the low is the tx pair, the switch compentsates the tx already, but the rx needs more delay,
-    // we also need to clear bit 11, the default field is 0x0800 we change it to 0x0031
-    // TODO: TUNE THIS NUMBER BETTER< THIS LINKS UP AND TALKS< but requires further testing
-    writeMdc(address, 0x14, 0x0042);
-    // reset the extended field
-    writeMdc(address, 0x1f, 0x0000);
-
-    writeMdc(address, 0x00, 0x9040);
-    // turn smi duplication back off
-    writeMdc(address, 0x16, 0x3200);
+void MdcMdioController::clockBit(bool mdioValue) {
+	digitalWrite(mdcPin, LOW);
+	digitalWrite(mdioPin, mdioValue);
+	delayMicroseconds(DELAY_US);
+	digitalWrite(mdcPin, HIGH);
+	delayMicroseconds(DELAY_US);
 }
 
-void MdcMdioController::clockBit(bool mdioValue)
-{
-    digitalWrite(mdcPin, LOW);
-    digitalWrite(mdioPin, mdioValue);
-    delayMicroseconds(DELAY_US);
-    digitalWrite(mdcPin, HIGH);
-    delayMicroseconds(DELAY_US);
+void MdcMdioController::writeRegisterMasked(
+	uint8_t phyAddr, uint8_t regAddr, uint16_t data, uint16_t mask) {
+	uint16_t currentVal = readRegister(phyAddr, regAddr);
+	uint16_t valToWrite = (currentVal & ~mask) | (data & mask);
+	writeRegister(phyAddr, regAddr, valToWrite);
 }
 
-void MdcMdioController::startPreamble()
-{
-    // Send 32 bits of preamble (all 1's)
-    for (int i = 0; i < 32; i++)
-    {
-        digitalWrite(mdioPin, HIGH);
-        digitalWrite(mdcPin, LOW);
-        delayMicroseconds(DELAY_US);
-        digitalWrite(mdcPin, HIGH);
-        delayMicroseconds(DELAY_US);
-    }
+uint16_t MdcMdioController::readRegister(uint8_t phyAddr, uint8_t regAddr) {
+	pinMode(mdioPin, OUTPUT);
+
+	// Preamble - 32 bits of HIGH
+	for (uint8_t preambleBit = 0; preambleBit < 32; preambleBit++)
+		clockBit(HIGH);
+
+	// Start code (01b)
+	clockBit(LOW);
+	clockBit(HIGH);
+
+	// Read OP code (10b)
+	clockBit(HIGH);
+	clockBit(LOW);
+
+	// PHY address - 5 bits, MSB first
+	for (uint8_t addressBit = 0x10; addressBit != 0; addressBit = addressBit >> 1)
+		clockBit(addressBit & phyAddr ? HIGH : LOW);
+
+	// Register address - 5 bits, MSB first
+	for (uint8_t registerBit = 0x10; registerBit != 0; registerBit = registerBit >> 1)
+		clockBit(registerBit & regAddr ? HIGH : LOW);
+
+	// Turnaround bits - MDIO becomes an input while the PHY drives the bus
+	pinMode(mdioPin, INPUT);
+
+	// TA bit 1 - high Z (controller releases, pullup holds high)
+	digitalWrite(mdcPin, LOW);
+	delayMicroseconds(DELAY_US);
+	digitalWrite(mdcPin, HIGH);
+	delayMicroseconds(DELAY_US);
+
+	// TA bit 2 - PHY drives LOW to acknowledge (TODO: check the acknowledgment and error if absent)
+	digitalWrite(mdcPin, LOW);
+	delayMicroseconds(DELAY_US);
+	digitalWrite(mdcPin, HIGH);
+	delayMicroseconds(DELAY_US);
+
+	// Data - 16 bits, MSB first
+	uint16_t data = 0;
+	for (uint16_t dataBit = 0x8000; dataBit != 0; dataBit = dataBit >> 1) {
+		digitalWrite(mdcPin, LOW);
+		delayMicroseconds(DELAY_US / 2);
+
+		if (digitalRead(mdioPin))
+			data |= dataBit;
+
+		delayMicroseconds(DELAY_US / 2);
+		digitalWrite(mdcPin, HIGH);
+		delayMicroseconds(DELAY_US);
+	}
+
+	// Return MDIO to output and idle high
+	pinMode(mdioPin, OUTPUT);
+	digitalWrite(mdioPin, HIGH);
+
+	return data;
 }
 
-void MdcMdioController::writeBit(bool bit)
-{
-    digitalWrite(mdioPin, bit);
-    digitalWrite(mdcPin, LOW);
-    delayMicroseconds(DELAY_US);
-    digitalWrite(mdcPin, HIGH);
-    delayMicroseconds(DELAY_US);
-}
+void MdcMdioController::writeRegister(uint8_t phyAddr, uint8_t regAddr, uint16_t data) {
+	pinMode(mdioPin, OUTPUT);
 
-bool MdcMdioController::readBit()
-{
+	// Preamble - 32 bits of HIGH
+	for (uint8_t preambleBit = 0; preambleBit < 32; preambleBit++)
+		clockBit(HIGH);
 
-    bool bit = digitalRead(mdioPin);
-    digitalWrite(mdcPin, LOW);
-    delayMicroseconds(DELAY_US);
-    digitalWrite(mdcPin, HIGH);
-    delayMicroseconds(DELAY_US);
-    return bit;
-}
+	// Start code (01b)
+	clockBit(LOW);
+	clockBit(HIGH);
 
-void MdcMdioController::turnaround(bool isRead)
-{
-    if (isRead)
-    {
-        // For read: MDIO goes high-Z, then input
-        pinMode(mdioPin, INPUT);
-        digitalWrite(mdcPin, LOW);
-        delayMicroseconds(DELAY_US);
-        digitalWrite(mdcPin, HIGH);
-        delayMicroseconds(DELAY_US);
-    }
-    else
-    {
-        // For write: MDIO stays as output
-        digitalWrite(mdcPin, LOW);
-        delayMicroseconds(DELAY_US);
-        digitalWrite(mdcPin, HIGH);
-        delayMicroseconds(DELAY_US);
-    }
-}
+	// Write OP code (01b)
+	clockBit(LOW);
+	clockBit(HIGH);
 
-uint16_t MdcMdioController::readData()
-{
-    uint16_t data = 0;
-    for (int i = 15; i >= 0; i--)
-    {
-        data |= (readBit() << i);
-    }
-    return data;
-}
+	// PHY address - 5 bits, MSB first
+	for (uint8_t addressBit = 0x10; addressBit != 0; addressBit = addressBit >> 1)
+		clockBit(addressBit & phyAddr ? HIGH : LOW);
 
-void MdcMdioController::writeData(uint16_t data)
-{
-    for (int i = 15; i >= 0; i--)
-    {
-        writeBit((data >> i) & 0x01);
-    }
-}
+	// Register address - 5 bits, MSB first
+	for (uint8_t registerBit = 0x10; registerBit != 0; registerBit = registerBit >> 1)
+		clockBit(registerBit & regAddr ? HIGH : LOW);
 
-void MdcMdioController::writeMdcMask(uint8_t phyAddr, uint8_t regAddr, uint16_t data, uint16_t mask)
-{
-    uint16_t currentVal = readMdc(phyAddr, regAddr);
-    uint16_t valToWrite = (currentVal & ~mask) | (data & mask);
-    writeMdc(phyAddr, regAddr, valToWrite);
-}
+	// Turnaround bits (10b)
+	clockBit(HIGH);
+	clockBit(LOW);
 
-uint16_t MdcMdioController::readMdc(uint8_t phyAddr, uint8_t regAddr)
-{
-    uint8_t byte;
-    uint16_t word, data;
+	// Data - 16 bits, MSB first
+	for (uint16_t dataBit = 0x8000; dataBit != 0; dataBit = dataBit >> 1)
+		clockBit(dataBit & data ? HIGH : LOW);
 
-    /* MDIO pin is output */
-    pinMode(mdioPin, OUTPUT);
-
-    // Preamble
-    for (byte = 0; byte < 32; byte++)
-        clockBit(HIGH);
-
-    /* Stat code (01b) */
-    clockBit(LOW);
-    clockBit(HIGH);
-
-    /* Read OP Code (10b) */
-    clockBit(HIGH);
-    clockBit(LOW);
-
-    /* PHY address - 5 bits */
-    for (byte = 0x10; byte != 0; byte = byte >> 1)
-    {
-        if (byte & phyAddr)
-            clockBit(HIGH);
-        else
-            clockBit(LOW);
-    }
-
-    /* REG address - 5 bits */
-    for (byte = 0x10; byte != 0; byte = byte >> 1)
-    {
-        if (byte & regAddr)
-            clockBit(HIGH);
-        else
-            clockBit(LOW);
-    }
-
-    /* Turn around bits */
-    pinMode(mdioPin, INPUT);
-
-    // TA bit 1 - high Z (controller releases, pullup holds high)
-    digitalWrite(mdcPin, LOW);
-    delayMicroseconds(DELAY_US);
-    digitalWrite(mdcPin, HIGH);
-    delayMicroseconds(DELAY_US);
-
-    // TA bit 2 - PHY drives LOW to acknowledge (TODO: Actually look for acknowledgment and have error if not)
-    digitalWrite(mdcPin, LOW);
-    delayMicroseconds(DELAY_US);
-    digitalWrite(mdcPin, HIGH);
-    delayMicroseconds(DELAY_US);
-
-    /* Data - 16 bits */
-    data = 0;
-    for (word = 0x8000; word != 0; word = word >> 1)
-    {
-        digitalWrite(mdcPin, LOW);
-        delayMicroseconds(DELAY_US / 2);
-
-        if (digitalRead(mdioPin))
-            data |= word;
-
-        delayMicroseconds(DELAY_US / 2);
-        digitalWrite(mdcPin, HIGH);
-        delayMicroseconds(DELAY_US);
-    }
-
-    // Return MDIO to output and idle high
-    pinMode(mdioPin, OUTPUT);
-    digitalWrite(mdioPin, HIGH);
-
-    return data;
-}
-
-void MdcMdioController::writeMdc(uint8_t phyAddr, uint8_t regAddr, uint16_t data)
-{
-    pinMode(mdioPin, OUTPUT);
-
-    // Preamble - 32 bits of HIGH
-    for (uint8_t preambleBit = 0; preambleBit < 32; preambleBit++)
-        clockBit(HIGH);
-
-    // Start code (01b)
-    clockBit(LOW);
-    clockBit(HIGH);
-
-    // Write OP code (01b)
-    clockBit(LOW);
-    clockBit(HIGH);
-
-    // PHY address - 5 bits, MSB first
-    for (uint8_t addressBit = 0x10; addressBit != 0; addressBit = addressBit >> 1)
-        clockBit(addressBit & phyAddr ? HIGH : LOW);
-
-    // Register address - 5 bits, MSB first
-    for (uint8_t registerBit = 0x10; registerBit != 0; registerBit = registerBit >> 1)
-        clockBit(registerBit & regAddr ? HIGH : LOW);
-
-    // Turnaround bits (10b)
-    clockBit(HIGH);
-    clockBit(LOW);
-
-    // Data - 16 bits, MSB first
-    for (uint16_t dataBit = 0x8000; dataBit != 0; dataBit = dataBit >> 1)
-        clockBit(dataBit & data ? HIGH : LOW);
-
-    // Return MDIO to idle high
-    digitalWrite(mdioPin, HIGH);
+	// Return MDIO to idle high
+	digitalWrite(mdioPin, HIGH);
 }

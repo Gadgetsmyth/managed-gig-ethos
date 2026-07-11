@@ -3,34 +3,28 @@
 
 #include <Arduino.h>
 
-class MdcMdioController
-{
+// Bit-banged MDC/MDIO (SMI) master for accessing PHY registers.
+class MdcMdioController {
 public:
-    // Constructor
-    MdcMdioController(int mdcPin, int mdioPin);
+	MdcMdioController(int mdcPin, int mdioPin);
 
-    // Initialize MDC/MDIO pins
-    void begin();
+	// Configure the MDC/MDIO pins.
+	void begin();
 
-    // MDC/MDIO read/write functions
-    uint16_t readMdc(uint8_t phyAddr, uint8_t regAddr);
-    void writeMdc(uint8_t phyAddr, uint8_t regAddr, uint16_t data);
-    void writeMdcMask(uint8_t phyAddr, uint8_t regAddr, uint16_t data, uint16_t mask);
-    void initialize_dual_phy(uint8_t address = 0x00);
+	// PHY register access over the MDC/MDIO bus.
+	uint16_t readRegister(uint8_t phyAddr, uint8_t regAddr);
+	void writeRegister(uint8_t phyAddr, uint8_t regAddr, uint16_t data);
+	void writeRegisterMasked(uint8_t phyAddr, uint8_t regAddr, uint16_t data, uint16_t mask);
+
+	// Apply the dual-PHY bring-up register sequence to the PHY at phyAddr.
+	void initializeDualPhy(uint8_t phyAddr = 0x00);
 
 private:
-    // Pin configuration
-    const int mdcPin;
-    const int mdioPin;
+	const int mdcPin;
+	const int mdioPin;
 
-    // Helper functions for MDC/MDIO protocol
-    void clockBit(bool mdioValue);
-    void startPreamble();
-    void writeBit(bool bit);
-    bool readBit();
-    void turnaround(bool isRead);
-    uint16_t readData();
-    void writeData(uint16_t data);
+	// Drive one MDC clock cycle, presenting mdioValue on MDIO.
+	void clockBit(bool mdioValue);
 };
 
 #endif // MDCMDIOCONTROLLER_H

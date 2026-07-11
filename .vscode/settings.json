@@ -1,0 +1,20 @@
+{
+	// Use the Microsoft C/C++ extension (cpptools) that PlatformIO installs and drives.
+	"editor.formatOnSave": true,
+	"[c]": { "editor.defaultFormatter": "ms-vscode.cpptools" },
+	"[cpp]": { "editor.defaultFormatter": "ms-vscode.cpptools" },
+
+	// Formatting: clang-format ("default" engine), using the .clang-format file ("file" style).
+	"C_Cpp.formatting": "default",
+	"C_Cpp.clang_format_style": "file",
+
+	// In-editor clang-tidy is OFF: Clang cannot parse the avr-gcc framework headers
+	// (AVR inline asm / 16-bit pointers), so it errors on Arduino.h. cpptools
+	// IntelliSense handles AVR via compile_commands and provides the live squiggles.
+	// The .clang-tidy file is kept for running clang-tidy manually or in CI on src/.
+	"C_Cpp.codeAnalysis.clangTidy.enabled": false,
+
+	// Resolve AVR/Arduino headers from PlatformIO's compilation database
+	// (regenerate with: pio run -t compiledb).
+	"C_Cpp.default.compileCommands": "${workspaceFolder}/compile_commands.json"
+}

@@ -28,8 +28,12 @@ pio run -e fuses_bootloader -t fuses
 # Burn fuses + bootloader (urboot) via Atmel ICE
 pio run -e fuses_bootloader -t bootloader
 
-# Open serial monitor (9600 baud, port from Upload_UART)
+# Open serial monitor (57600 baud, port from Upload_UART)
 pio device monitor
+
+# Regenerate the clangd compilation database (needed for IDE IntelliSense/lint after
+# changing includes or build flags). Output compile_commands.json is gitignored.
+pio run -t compiledb
 ```
 
 ## Hardware Configuration
@@ -41,15 +45,20 @@ pio device monitor
 
 ## Code Architecture
 
-The intended application (currently commented out in `src/main.cpp`) consists of three controllers:
+The application in `src/main.cpp` wires together three controllers as file-scope globals and
+delegates serial commands to them. All classes (`.h` + `.cpp`) live flat in `src/`:
 
-- **`SpiController`** (`include/` / `lib/`): Manages SPI bus communication with PHY chips
-- **`MdcMdioController`** (`include/` / `lib/`): Manages MDC (clock, A4/PC4) and MDIO (data, A5/PC5) bus for PHY register access; includes `initialize_dual_phy()` for dual-PHY setup with patch registers
-- **`Terminal`** (`include/` / `lib/`): Serial terminal (57600 baud) that accepts commands and delegates to SPI/MDC controllers
+- **`SpiController`** (`src/SpiController.{h,cpp}`): Manages SPI bus communication with PHY chips
+- **`MdcMdioController`** (`src/MdcMdioController.{h,cpp}`): Bit-bangs the MDC (clock, A5/PC5) and MDIO (data, A4/PC4) bus for PHY register access; includes `initializeDualPhy()` for dual-PHY setup with patch registers
+- **`Terminal`** (`src/Terminal.{h,cpp}`): Serial terminal (57600 baud) that accepts commands and delegates to the SPI/MDC controllers
 
-All application headers belong in `include/`, private libraries in `lib/<LibraryName>/`. PlatformIO auto-discovers library dependencies.
+The stock `include/` and `lib/` directories contain only PlatformIO's placeholder READMEs and are unused.
+
+Style is enforced by `.clang-format` and `.editorconfig`: **tab indentation (width 4)**, K&R braces,
+`PascalCase` classes, `camelCase` methods/variables, `UPPER_SNAKE` constants. Run
+`clang-format -i src/*.cpp src/*.h` to reformat.
 
 ## Environment Notes
 
 - LTO is explicitly disabled (`build_unflags = -flto`)
-- The active `main.cpp` is a placeholder blink sketch on pin 11; the real application is commented out
+- `src/main.cpp` is the active application: it constructs the three controllers, drives the reset line and PHY bring-up in `setup()`, and pumps `Terminal::processInput()` in `loop()`
