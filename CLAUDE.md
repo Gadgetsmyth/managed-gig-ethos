@@ -28,6 +28,10 @@ pio run -e fuses_bootloader -t fuses
 # Burn fuses + bootloader (urboot) via Atmel ICE
 pio run -e fuses_bootloader -t bootloader
 
+# Same, via USBasp (see README.md for hardware setup and raw avrdude equivalents)
+pio run -e fuses_bootloader_usbasp -t bootloader
+pio run -e Upload_USBasp -t upload
+
 # Open serial monitor (57600 baud, port from Upload_UART)
 pio device monitor
 

@@ -8,7 +8,7 @@ Terminal::Terminal(SpiController& spi, MdcMdioController& mdc)
 }
 
 void Terminal::begin() {
-	Serial.println("Terminal initialized. Type 'help' for available commands.");
+	Serial.println(F("Terminal initialized. Type 'help' for available commands."));
 	printPrompt();
 }
 
@@ -21,7 +21,7 @@ void Terminal::processInput() {
 		if (c == '\b' || c == 127) {
 			if (inputIndex > 0) {
 				inputIndex--;
-				Serial.print("\b \b");
+				Serial.print(F("\b \b"));
 			}
 			return;
 		}
@@ -74,7 +74,7 @@ void Terminal::processCommand() {
 	} else if (strcmp(inputBuffer, "help") == 0) {
 		handleHelpCommand();
 	} else {
-		printError("Unknown command. Type 'help' for available commands.");
+		printError(F("Unknown command. Type 'help' for available commands."));
 	}
 
 	// Reset input buffer
@@ -84,7 +84,7 @@ void Terminal::processCommand() {
 
 void Terminal::handleReadCommand(const char* args) {
 	if (!args) {
-		printError("Missing arguments. Usage: read <address> <count>");
+		printError(F("Missing arguments. Usage: read <address> <count>"));
 		return;
 	}
 
@@ -92,21 +92,21 @@ void Terminal::handleReadCommand(const char* args) {
 	bool parseSuccess;
 	uint16_t address = parseHexAddress(args, parseSuccess);
 	if (!parseSuccess) {
-		printError("Invalid address format. Use hex (e.g., 0x01FF)");
+		printError(F("Invalid address format. Use hex (e.g., 0x01FF)"));
 		return;
 	}
 
 	// Find count argument
 	char* countStr = strchr(args, ' ');
 	if (!countStr) {
-		printError("Missing count argument. Usage: read <address> <count>");
+		printError(F("Missing count argument. Usage: read <address> <count>"));
 		return;
 	}
 	countStr++; // Skip the space
 
 	int count = parseDecimal(countStr, parseSuccess);
 	if (count <= 0 || count > 16) {
-		printError("Invalid count. Must be between 1 and 16");
+		printError(F("Invalid count. Must be between 1 and 16"));
 		return;
 	}
 
@@ -116,22 +116,22 @@ void Terminal::handleReadCommand(const char* args) {
 	uint8_t registerAddr = address & 0xFF;
 
 	// Read and print the values
-	Serial.print("Reading ");
+	Serial.print(F("Reading "));
 	Serial.print(count);
-	Serial.print(" bytes from address 0x");
+	Serial.print(F(" bytes from address 0x"));
 	Serial.println(address, HEX);
 
 	for (int i = 0; i < count; i++) {
 		uint8_t value = spiController.readRegister(port, function, registerAddr + i);
 		printHexByte(value);
-		Serial.print(" ");
+		Serial.print(' ');
 	}
 	Serial.println();
 }
 
 void Terminal::handleWriteCommand(const char* args) {
 	if (!args) {
-		printError("Missing arguments. Usage: write <address> <value>");
+		printError(F("Missing arguments. Usage: write <address> <value>"));
 		return;
 	}
 
@@ -139,21 +139,21 @@ void Terminal::handleWriteCommand(const char* args) {
 	bool parseSuccess;
 	uint16_t address = parseHexAddress(args, parseSuccess);
 	if (!parseSuccess) {
-		printError("Invalid address format. Use hex (e.g., 0x01FF)");
+		printError(F("Invalid address format. Use hex (e.g., 0x01FF)"));
 		return;
 	}
 
 	// Find value argument
 	char* valueStr = strchr(args, ' ');
 	if (!valueStr) {
-		printError("Missing value argument. Usage: write <address> <value>");
+		printError(F("Missing value argument. Usage: write <address> <value>"));
 		return;
 	}
 	valueStr++; // Skip the space
 
 	uint8_t value = parseHexByte(valueStr, parseSuccess);
 	if (!parseSuccess) {
-		printError("Invalid value format. Use hex (e.g., 0xC0)");
+		printError(F("Invalid value format. Use hex (e.g., 0xC0)"));
 		return;
 	}
 
@@ -164,15 +164,15 @@ void Terminal::handleWriteCommand(const char* args) {
 
 	// Write the value
 	spiController.writeRegister(port, function, registerAddr, value);
-	Serial.print("Wrote ");
+	Serial.print(F("Wrote "));
 	printHexByte(value);
-	Serial.print(" to address 0x");
+	Serial.print(F(" to address 0x"));
 	Serial.println(address, HEX);
 }
 
 void Terminal::handleReadMdcCommand(const char* args) {
 	if (!args) {
-		printError("Missing arguments. Usage: readmdc <phy_addr> <reg_addr>");
+		printError(F("Missing arguments. Usage: readmdc <phy_addr> <reg_addr>"));
 		return;
 	}
 
@@ -180,38 +180,38 @@ void Terminal::handleReadMdcCommand(const char* args) {
 	bool parseSuccess;
 	uint8_t phyAddr = parseHexByte(args, parseSuccess);
 	if (!parseSuccess) {
-		printError("Invalid PHY address format. Use hex (e.g., 0x01)");
+		printError(F("Invalid PHY address format. Use hex (e.g., 0x01)"));
 		return;
 	}
 
 	// Find register address argument
 	char* regStr = strchr(args, ' ');
 	if (!regStr) {
-		printError("Missing register address argument. Usage: readmdc <phy_addr> <reg_addr>");
+		printError(F("Missing register address argument. Usage: readmdc <phy_addr> <reg_addr>"));
 		return;
 	}
 	regStr++; // Skip the space
 
 	uint8_t regAddr = parseHexByte(regStr, parseSuccess);
 	if (!parseSuccess) {
-		printError("Invalid register address format. Use hex (e.g., 0x01)");
+		printError(F("Invalid register address format. Use hex (e.g., 0x01)"));
 		return;
 	}
 
 	// Read and print the value
 	uint16_t value = mdcController.readRegister(phyAddr, regAddr);
-	Serial.print("Read from PHY ");
+	Serial.print(F("Read from PHY "));
 	printHexByte(phyAddr);
-	Serial.print(" Register ");
+	Serial.print(F(" Register "));
 	printHexByte(regAddr);
-	Serial.print(" = ");
+	Serial.print(F(" = "));
 	printHexWord(value);
 	Serial.println();
 }
 
 void Terminal::handleWriteMdcCommand(const char* args) {
 	if (!args) {
-		printError("Missing arguments. Usage: writemdc <phy_addr> <reg_addr> <value>");
+		printError(F("Missing arguments. Usage: writemdc <phy_addr> <reg_addr> <value>"));
 		return;
 	}
 
@@ -219,7 +219,7 @@ void Terminal::handleWriteMdcCommand(const char* args) {
 	bool parseSuccess;
 	uint8_t phyAddr = parseHexByte(args, parseSuccess);
 	if (!parseSuccess) {
-		printError("Invalid PHY address format. Use hex (e.g., 0x01)");
+		printError(F("Invalid PHY address format. Use hex (e.g., 0x01)"));
 		return;
 	}
 
@@ -227,38 +227,38 @@ void Terminal::handleWriteMdcCommand(const char* args) {
 	char* regStr = strchr(args, ' ');
 	if (!regStr) {
 		printError(
-			"Missing register address argument. Usage: writemdc <phy_addr> <reg_addr> <value>");
+			F("Missing register address argument. Usage: writemdc <phy_addr> <reg_addr> <value>"));
 		return;
 	}
 	regStr++; // Skip the space
 
 	uint8_t regAddr = parseHexByte(regStr, parseSuccess);
 	if (!parseSuccess) {
-		printError("Invalid register address format. Use hex (e.g., 0x01)");
+		printError(F("Invalid register address format. Use hex (e.g., 0x01)"));
 		return;
 	}
 
 	// Find value argument
 	char* valueStr = strchr(regStr, ' ');
 	if (!valueStr) {
-		printError("Missing value argument. Usage: writemdc <phy_addr> <reg_addr> <value>");
+		printError(F("Missing value argument. Usage: writemdc <phy_addr> <reg_addr> <value>"));
 		return;
 	}
 	valueStr++; // Skip the space
 
 	uint16_t value = parseHexAddress(valueStr, parseSuccess);
 	if (!parseSuccess) {
-		printError("Invalid value format. Use hex (e.g., 0x1234)");
+		printError(F("Invalid value format. Use hex (e.g., 0x1234)"));
 		return;
 	}
 
 	// Write the value
 	mdcController.writeRegister(phyAddr, regAddr, value);
-	Serial.print("Wrote ");
+	Serial.print(F("Wrote "));
 	printHexWord(value);
-	Serial.print(" to PHY ");
+	Serial.print(F(" to PHY "));
 	printHexByte(phyAddr);
-	Serial.print(" Register ");
+	Serial.print(F(" Register "));
 	printHexByte(regAddr);
 	Serial.println();
 }
@@ -273,7 +273,7 @@ void Terminal::handleScanMdcCommand(const char* args) {
 		if (value != 0x0000) {
 			found = true;
 			if (phyAddr < 0x10)
-				Serial.print("0");
+				Serial.print('0');
 			Serial.println(phyAddr, HEX);
 			break;
 		}
@@ -283,7 +283,7 @@ void Terminal::handleScanMdcCommand(const char* args) {
 	}
 
 	if (!found) {
-		Serial.println("No PHY devices found.");
+		Serial.println(F("No PHY devices found."));
 	}
 
 	// Ensure all output is sent
@@ -291,45 +291,45 @@ void Terminal::handleScanMdcCommand(const char* args) {
 }
 
 void Terminal::handleHelpCommand() {
-	Serial.println("Available commands:");
-	Serial.println("  read <address> <count>     - Read <count> bytes from <address>");
-	Serial.println("                             Example: read 0x01FF 3");
-	Serial.println("  write <address> <value>    - Write <value> to <address>");
-	Serial.println("                             Example: write 0x01FF 0xC0");
-	Serial.println("  readmdc <phy> <reg>       - Read from PHY register");
-	Serial.println("                             Example: readmdc 0x01 0x00");
-	Serial.println("  writemdc <phy> <reg> <val> - Write to PHY register");
-	Serial.println("                             Example: writemdc 0x01 0x00 0x1234");
-	Serial.println("  scanmdc                    - Scan for PHY devices");
-	Serial.println("  help                       - Show this help message");
+	Serial.println(F("Available commands:"));
+	Serial.println(F("  read <address> <count>     - Read <count> bytes from <address>"));
+	Serial.println(F("                             Example: read 0x01FF 3"));
+	Serial.println(F("  write <address> <value>    - Write <value> to <address>"));
+	Serial.println(F("                             Example: write 0x01FF 0xC0"));
+	Serial.println(F("  readmdc <phy> <reg>       - Read from PHY register"));
+	Serial.println(F("                             Example: readmdc 0x10 0x00"));
+	Serial.println(F("  writemdc <phy> <reg> <val> - Write to PHY register"));
+	Serial.println(F("                             Example: writemdc 0x01 0x00 0x1234"));
+	Serial.println(F("  scanmdc                    - Scan for PHY devices"));
+	Serial.println(F("  help                       - Show this help message"));
 }
 
 void Terminal::printPrompt() {
-	Serial.print("> ");
+	Serial.print(F("> "));
 }
 
-void Terminal::printError(const char* message) {
-	Serial.print("Error: ");
+void Terminal::printError(const __FlashStringHelper* message) {
+	Serial.print(F("Error: "));
 	Serial.println(message);
 }
 
 // Print a byte as "0x" followed by two zero-padded hex digits.
 void Terminal::printHexByte(uint8_t value) {
-	Serial.print("0x");
+	Serial.print(F("0x"));
 	if (value < 0x10)
-		Serial.print("0");
+		Serial.print('0');
 	Serial.print(value, HEX);
 }
 
 // Print a 16-bit word as "0x" followed by four zero-padded hex digits.
 void Terminal::printHexWord(uint16_t value) {
-	Serial.print("0x");
+	Serial.print(F("0x"));
 	if (value < 0x1000)
-		Serial.print("0");
+		Serial.print('0');
 	if (value < 0x100)
-		Serial.print("0");
+		Serial.print('0');
 	if (value < 0x10)
-		Serial.print("0");
+		Serial.print('0');
 	Serial.print(value, HEX);
 }
 

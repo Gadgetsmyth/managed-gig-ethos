@@ -36,7 +36,7 @@ private:
 	// Helper functions
 	void processCommand();
 	void printPrompt();
-	void printError(const char* message);
+	void printError(const __FlashStringHelper* message);
 	void printHexByte(uint8_t value);
 	void printHexWord(uint16_t value);
 	uint16_t parseHexAddress(const char* str, bool& success);
