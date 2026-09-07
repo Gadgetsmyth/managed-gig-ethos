@@ -152,6 +152,15 @@ uint32_t MdcMdioController::readPhyId(uint8_t phyAddr) {
 	return (phyId << 16) | readRegister(phyAddr, 0x03);
 }
 
+bool MdcMdioController::readLinkStatus(uint8_t phyAddr) {
+	readRegister(phyAddr, 0x01);
+	return readRegister(phyAddr, 0x01) & _BV(2);
+}
+
+uint16_t MdcMdioController::readAuxStatus(uint8_t phyAddr) {
+	return readRegister(phyAddr, 0x1C);
+}
+
 void MdcMdioController::clockBit(bool mdioValue) {
 	digitalWrite(mdcPin, LOW);
 	digitalWrite(mdioPin, mdioValue);

@@ -19,8 +19,7 @@ void SpiController::begin() {
 }
 
 uint16_t SpiController::readChipId() {
-	uint16_t chipId = readRegister(0, 0, 0x01);
-	return (chipId << 8) | readRegister(0, 0, 0x02);
+	return readRegister16(0, 0, 0x01);
 }
 
 // Silicon revision is the high nibble of global register 0x0003.
@@ -41,59 +40,53 @@ uint16_t SpiController::constructAddress(uint8_t port, uint8_t function, uint8_t
 	return ((port & 0x07) << 12) | ((function & 0x0F) << 8) | (registerAddr & 0xFF);
 }
 
-void SpiController::writeRegister(
-	uint8_t port, uint8_t function, uint8_t registerAddr, uint8_t data) {
-	uint16_t address = constructAddress(port, function, registerAddr);
-
-	// Begin SPI transaction
+void SpiController::startTransfer(uint8_t command, uint16_t address) {
 	SPI.beginTransaction(SPISettings(clockSpeed, MSBFIRST, SPI_MODE0));
 	digitalWrite(csPin, LOW);
 
-	// Send write command (010) and address
-	SPI.transfer(SPI_WRITE_COMMAND);
+	// Command phase is 32 bits: 3-bit opcode, 24-bit address (A23-A16 are don't-care on
+	// this part), then 5 turnaround bits. Data bytes follow while chip select stays low,
+	// and the switch auto-increments the address for each one.
+	SPI.transfer(command);
+	SPI.transfer((address >> 11) & 0x1F); // A15-A11
+	SPI.transfer((address >> 3) & 0xFF);  // A10-A3
+	SPI.transfer((address << 5) & 0xE0);  // A2-A0 + turnaround
+}
 
-	// Second byte: (3 bits of dont care) + 5 bits of address (A15-A11)
-	SPI.transfer((address >> 11) & 0x1F);
-
-	// Third byte: 8 bits of middle of address (A10-A3)
-	SPI.transfer(((address >> 3) & 0xFF));
-
-	// Fourth byte: 3 bits of bottom of address (A2-A0) + 5 bits of dont care
-	SPI.transfer((address << 5) & 0xE0);
-
-	// Send data
-	SPI.transfer(data);
-
-	// End transaction
+void SpiController::endTransfer() {
 	digitalWrite(csPin, HIGH);
 	SPI.endTransaction();
 }
 
+void SpiController::writeRegister(
+	uint8_t port, uint8_t function, uint8_t registerAddr, uint8_t data) {
+	startTransfer(SPI_WRITE_COMMAND, constructAddress(port, function, registerAddr));
+	SPI.transfer(data);
+	endTransfer();
+}
+
 uint8_t SpiController::readRegister(uint8_t port, uint8_t function, uint8_t registerAddr) {
-	uint16_t address = constructAddress(port, function, registerAddr);
-
-	// Begin SPI transaction
-	SPI.beginTransaction(SPISettings(clockSpeed, MSBFIRST, SPI_MODE0));
-	digitalWrite(csPin, LOW);
-
-	// Send read command (011) and address
-	SPI.transfer(SPI_READ_COMMAND);
-
-	// Second byte: (3 bits of dont care) + 5 bits of address (A15-A11)
-	SPI.transfer((address >> 11) & 0x1F);
-
-	// Third byte: 8 bits of middle of address (A10-A3)
-	SPI.transfer(((address >> 3) & 0xFF));
-
-	// Fourth byte: 3 bits of bottom of address (A2-A0) + 5 bits of dont care
-	SPI.transfer((address << 5) & 0xE0);
-
-	// Read data
+	startTransfer(SPI_READ_COMMAND, constructAddress(port, function, registerAddr));
 	uint8_t data = SPI.transfer(0x00);
-
-	// End transaction
-	digitalWrite(csPin, HIGH);
-	SPI.endTransaction();
-
+	endTransfer();
 	return data;
+}
+
+uint16_t SpiController::readRegister16(uint8_t port, uint8_t function, uint8_t registerAddr) {
+	startTransfer(SPI_READ_COMMAND, constructAddress(port, function, registerAddr));
+	uint16_t data = static_cast<uint16_t>(SPI.transfer(0x00)) << 8;
+	data |= SPI.transfer(0x00);
+	endTransfer();
+	return data;
+}
+
+uint8_t SpiController::readPortStatus(uint8_t port) {
+	return readRegister(port, 0, 0x30);
+}
+
+bool SpiController::readInternalPhyLink(uint8_t port) {
+	// IEEE basic status is at 0xN102. Its link bit latches low on a link drop, so the
+	// first read reports history and the second the current state.
+	readRegister16(port, 1, 0x02);
+	return readRegister16(port, 1, 0x02) & _BV(2);
 }

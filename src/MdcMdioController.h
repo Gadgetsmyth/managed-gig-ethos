@@ -23,6 +23,15 @@ public:
 	// Read IEEE registers 2 and 3 as one 32-bit identifier, register 2 in the high half.
 	uint32_t readPhyId(uint8_t phyAddr);
 
+	// Link state from IEEE register 1. The bit latches low, so it is read twice.
+	bool readLinkStatus(uint8_t phyAddr);
+
+	// VSC8531 auxiliary control and status (register 28): resolved speed and duplex.
+	uint16_t readAuxStatus(uint8_t phyAddr);
+	static constexpr uint8_t AUX_STATUS_SPEED_SHIFT = 3;
+	static constexpr uint8_t AUX_STATUS_SPEED_MASK = 0x03;
+	static constexpr uint16_t AUX_STATUS_FULL_DUPLEX = 0x0020;
+
 	// Apply the dual-PHY bring-up register sequence to the PHY at phyAddr.
 	void initializeDualPhy(uint8_t phyAddr = 0x00);
 

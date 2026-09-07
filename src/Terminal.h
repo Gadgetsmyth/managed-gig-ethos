@@ -25,6 +25,7 @@ public:
 	void handleReadMdcCommand(const char* args);
 	void handleWriteMdcCommand(const char* args);
 	void handleScanMdcCommand(const char* args);
+	void handleStatusCommand();
 	void handleRebootCommand();
 	void handleHangCommand();
 	void handleVersionCommand();
@@ -45,6 +46,7 @@ private:
 	void printError(const __FlashStringHelper* message);
 	void printHexByte(uint8_t value);
 	void printHexWord(uint16_t value);
+	void printLinkState(bool linkUp, uint8_t speedCode, bool fullDuplex);
 	uint16_t parseHexAddress(const char* str, bool& success);
 	uint8_t parseHexByte(const char* str, bool& success);
 	int parseDecimal(const char* str, bool& success);

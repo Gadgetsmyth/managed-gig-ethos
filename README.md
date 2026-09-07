@@ -184,14 +184,30 @@ write <address> <value>      SPI write one byte, e.g. write 0x01FF 0xC0
 readmdc <phy> <reg>          MDIO read, e.g. readmdc 0x01 0x00
 writemdc <phy> <reg> <val>   MDIO write, e.g. writemdc 0x01 0x00 0x1234
 scanmdc                      Find the first responding PHY address
+status                       Link, speed and duplex for all 7 ports
+version                      Firmware version and build time
 reboot                       Restart the controller
 hang                         Stop servicing the watchdog, to prove it fires (test only)
 help                         List commands
 ```
 
-Boot output starts with the reset cause, then one verification line per chip:
+`status` reads ports 1-5 from the switch's internal PHYs and ports 6-7 from the external
+PHYs over MDIO. For 6 and 7 it also shows the switch's fixed RGMII MAC setting, so a
+speed mismatch between PHY and MAC is visible:
 
 ```
+Port  Link  Speed  Duplex
+1     up    1000   full
+2     down
+...
+6     down  (PHY 0x00, MAC up    1000   full)
+```
+
+Boot output starts with the firmware version and reset cause, then one verification
+line per chip:
+
+```
+managed-gig-ethos e49d39f built Sep  7 2026 17:29:04
 Reset: external (MCUSR 0x8)
 Switch KSZ9897 rev 0: OK
 PHY 0x0 VSC8531 rev 2: OK

@@ -19,13 +19,30 @@ public:
 	uint8_t readRegister(uint8_t port, uint8_t function, uint8_t registerAddr);
 	void writeRegister(uint8_t port, uint8_t function, uint8_t registerAddr, uint8_t data);
 
+	// Burst read of a big-endian 16-bit register pair starting at registerAddr.
+	uint16_t readRegister16(uint8_t port, uint8_t function, uint8_t registerAddr);
+
 	// Chip identification from the global registers.
 	uint16_t readChipId();
 	uint8_t readRevision();
 
+	// Port N status register (0xN030): bits 4:3 speed, bit 2 full duplex. For PHY ports
+	// this is the negotiated link; for the RGMII ports it mirrors the configured MAC speed.
+	uint8_t readPortStatus(uint8_t port);
+	static constexpr uint8_t PORT_STATUS_SPEED_SHIFT = 3;
+	static constexpr uint8_t PORT_STATUS_SPEED_MASK = 0x03;
+	static constexpr uint8_t PORT_STATUS_FULL_DUPLEX = 0x04;
+
+	// Link state of an internal PHY port (1-5), from the latched-low IEEE status bit.
+	bool readInternalPhyLink(uint8_t port);
+
 private:
 	// Helper function to construct address
 	uint16_t constructAddress(uint8_t port, uint8_t function, uint8_t registerAddr);
+
+	// Assert chip select and send the 32-bit command/address phase; endTransfer() releases.
+	void startTransfer(uint8_t command, uint16_t address);
+	void endTransfer();
 
 	// SPI configuration
 	const int csPin;

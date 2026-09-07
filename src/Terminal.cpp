@@ -1,4 +1,5 @@
 #include "Terminal.h"
+#include "Board.h"
 #include "Watchdog.h"
 
 // Set from `git describe` by scripts/git_version.py; fallback for other build setups.
@@ -81,6 +82,8 @@ void Terminal::processCommand() {
 		handleWriteMdcCommand(args);
 	} else if (strcmp(inputBuffer, "scanmdc") == 0) {
 		handleScanMdcCommand(args);
+	} else if (strcmp(inputBuffer, "status") == 0) {
+		handleStatusCommand();
 	} else if (strcmp(inputBuffer, "reboot") == 0) {
 		handleRebootCommand();
 	} else if (strcmp(inputBuffer, "hang") == 0) {
@@ -306,6 +309,39 @@ void Terminal::handleScanMdcCommand(const char* args) {
 	Serial.flush();
 }
 
+// One row per switch port. Ports 1-5 come from the switch's internal PHYs; ports 6-7
+// come from the external PHYs over MDIO, alongside the switch's fixed RGMII MAC setting
+// so a mismatch between the two is visible.
+void Terminal::handleStatusCommand() {
+	Serial.println(F("Port  Link  Speed  Duplex"));
+	for (uint8_t port = 1; port <= Board::PORT_COUNT; port++) {
+		Serial.print(port);
+		Serial.print(F("     "));
+
+		uint8_t portStatus = spiController.readPortStatus(port);
+		uint8_t macSpeed = (portStatus >> SpiController::PORT_STATUS_SPEED_SHIFT) &
+			SpiController::PORT_STATUS_SPEED_MASK;
+		bool macFullDuplex = portStatus & SpiController::PORT_STATUS_FULL_DUPLEX;
+
+		if (Board::isExternalPort(port)) {
+			uint8_t phyAddr = Board::phyAddressForPort(port);
+			bool linkUp = mdcController.readLinkStatus(phyAddr);
+			uint16_t auxStatus = mdcController.readAuxStatus(phyAddr);
+			uint8_t phySpeed = (auxStatus >> MdcMdioController::AUX_STATUS_SPEED_SHIFT) &
+				MdcMdioController::AUX_STATUS_SPEED_MASK;
+			printLinkState(linkUp, phySpeed, auxStatus & MdcMdioController::AUX_STATUS_FULL_DUPLEX);
+			Serial.print(F("  (PHY "));
+			printHexByte(phyAddr);
+			Serial.print(F(", MAC "));
+			printLinkState(true, macSpeed, macFullDuplex);
+			Serial.print(')');
+		} else {
+			printLinkState(spiController.readInternalPhyLink(port), macSpeed, macFullDuplex);
+		}
+		Serial.println();
+	}
+}
+
 void Terminal::handleRebootCommand() {
 	Serial.println(F("Rebooting..."));
 	Serial.flush();
@@ -335,6 +371,7 @@ void Terminal::handleHelpCommand() {
 	Serial.println(F("  writemdc <phy> <reg> <val> - Write to PHY register"));
 	Serial.println(F("                             Example: writemdc 0x01 0x00 0x1234"));
 	Serial.println(F("  scanmdc                    - Scan for PHY devices"));
+	Serial.println(F("  status                     - Link, speed and duplex for all 7 ports"));
 	Serial.println(F("  reboot                     - Restart the controller"));
 	Serial.println(F("  hang                       - Stop kicking the watchdog (test)"));
 	Serial.println(F("  version                    - Show firmware version and build time"));
@@ -348,6 +385,31 @@ void Terminal::printPrompt() {
 void Terminal::printError(const __FlashStringHelper* message) {
 	Serial.print(F("Error: "));
 	Serial.println(message);
+}
+
+// Print "up    1000   full" or "down". speedCode is the 2-bit encoding shared by the
+// KSZ9897 port status and VSC8531 auxiliary status registers: 0 = 10, 1 = 100, 2 = 1000.
+void Terminal::printLinkState(bool linkUp, uint8_t speedCode, bool fullDuplex) {
+	if (!linkUp) {
+		Serial.print(F("down"));
+		return;
+	}
+	Serial.print(F("up    "));
+	switch (speedCode) {
+	case 0:
+		Serial.print(F("10     "));
+		break;
+	case 1:
+		Serial.print(F("100    "));
+		break;
+	case 2:
+		Serial.print(F("1000   "));
+		break;
+	default:
+		Serial.print(F("?      "));
+		break;
+	}
+	Serial.print(fullDuplex ? F("full") : F("half"));
 }
 
 // Print a byte as "0x" followed by two zero-padded hex digits.
