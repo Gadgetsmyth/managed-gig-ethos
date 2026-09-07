@@ -1,4 +1,5 @@
 #include "Terminal.h"
+#include "Watchdog.h"
 
 constexpr uint8_t Terminal::MAX_COMMAND_LENGTH;
 
@@ -71,6 +72,10 @@ void Terminal::processCommand() {
 		handleWriteMdcCommand(args);
 	} else if (strcmp(inputBuffer, "scanmdc") == 0) {
 		handleScanMdcCommand(args);
+	} else if (strcmp(inputBuffer, "reboot") == 0) {
+		handleRebootCommand();
+	} else if (strcmp(inputBuffer, "hang") == 0) {
+		handleHangCommand();
 	} else if (strcmp(inputBuffer, "help") == 0) {
 		handleHelpCommand();
 	} else {
@@ -290,6 +295,20 @@ void Terminal::handleScanMdcCommand(const char* args) {
 	Serial.flush();
 }
 
+void Terminal::handleRebootCommand() {
+	Serial.println(F("Rebooting..."));
+	Serial.flush();
+	Watchdog::reboot();
+}
+
+// Stop servicing the watchdog so it fires naturally. Proves the hang protection works.
+void Terminal::handleHangCommand() {
+	Serial.println(F("Hanging until the watchdog fires..."));
+	Serial.flush();
+	for (;;) {
+	}
+}
+
 void Terminal::handleHelpCommand() {
 	Serial.println(F("Available commands:"));
 	Serial.println(F("  read <address> <count>     - Read <count> bytes from <address>"));
@@ -301,6 +320,8 @@ void Terminal::handleHelpCommand() {
 	Serial.println(F("  writemdc <phy> <reg> <val> - Write to PHY register"));
 	Serial.println(F("                             Example: writemdc 0x01 0x00 0x1234"));
 	Serial.println(F("  scanmdc                    - Scan for PHY devices"));
+	Serial.println(F("  reboot                     - Restart the controller"));
+	Serial.println(F("  hang                       - Stop kicking the watchdog (test)"));
 	Serial.println(F("  help                       - Show this help message"));
 }
 

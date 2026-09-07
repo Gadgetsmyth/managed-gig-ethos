@@ -7,3 +7,6 @@
 # clangd: machine-specific compilation DB (regenerate with `pio run -t compiledb`) and index cache
 compile_commands.json
 .cache/
+
+# Per-machine PlatformIO overrides (upload_port etc.)
+platformio.local*.ini

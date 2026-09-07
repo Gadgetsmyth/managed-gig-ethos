@@ -22,6 +22,8 @@ public:
 	void handleReadMdcCommand(const char* args);
 	void handleWriteMdcCommand(const char* args);
 	void handleScanMdcCommand(const char* args);
+	void handleRebootCommand();
+	void handleHangCommand();
 	void handleHelpCommand();
 
 private:

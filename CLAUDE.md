@@ -55,6 +55,7 @@ delegates serial commands to them. All classes (`.h` + `.cpp`) live flat in `src
 - **`SpiController`** (`src/SpiController.{h,cpp}`): Manages SPI bus communication with PHY chips
 - **`MdcMdioController`** (`src/MdcMdioController.{h,cpp}`): Bit-bangs the MDC (clock, A5/PC5) and MDIO (data, A4/PC4) bus for PHY register access; includes `initializeDualPhy()` for dual-PHY setup with patch registers
 - **`Terminal`** (`src/Terminal.{h,cpp}`): Serial terminal (57600 baud) that accepts commands and delegates to the SPI/MDC controllers
+- **`Watchdog`** (`src/Watchdog.{h,cpp}`): Static class. 8 s hardware watchdog in interrupt-then-reset mode, reset-cause capture from `.init3` (urboot passes MCUSR in r2), and `reboot()`. Markers in `.noinit` distinguish firmware watchdog resets from urboot's watchdog-based exit after an external reset.
 
 The stock `include/` and `lib/` directories contain only PlatformIO's placeholder READMEs and are unused.
 
@@ -65,4 +66,5 @@ Style is enforced by `.clang-format` and `.editorconfig`: **tab indentation (wid
 ## Environment Notes
 
 - LTO is explicitly disabled (`build_unflags = -flto`)
-- `src/main.cpp` is the active application: it constructs the three controllers, drives the reset line and PHY bring-up in `setup()`, and pumps `Terminal::processInput()` in `loop()`
+- `src/main.cpp` is the active application: it arms the watchdog, prints the reset cause, drives the reset line and PHY bring-up in `setup()`, verifies the switch and PHY chip IDs, and pumps `Terminal::processInput()` plus `Watchdog::kick()` in `loop()`
+- Per-machine settings such as a pinned `upload_port` go in git-ignored `platformio.local.ini`, merged via `extra_configs`

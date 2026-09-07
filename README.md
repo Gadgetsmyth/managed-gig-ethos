@@ -129,8 +129,16 @@ speed avrdude uses to talk to it.
 pio run -e Upload_UART -t upload
 ```
 
-PlatformIO auto-detects the serial port. If it picks the wrong one, add
-`--upload-port /dev/ttyUSB0`. Then open the console:
+PlatformIO auto-detects the serial port. To pin it, create a git-ignored
+`platformio.local.ini` next to `platformio.ini`; it is merged in automatically. Using the
+by-id path survives usbipd renumbering and ignores stale `ttyUSBn` entries:
+
+```
+[env:Upload_UART]
+upload_port = /dev/serial/by-id/usb-FTDI_FT232R_USB_UART_<serial>-if00-port0
+```
+
+Find the path with `ls /dev/serial/by-id/`. Then open the console:
 
 ```
 pio device monitor
@@ -164,7 +172,9 @@ avrdude -c usbasp -p m328p -U flash:w:.pio/build/Upload_UART/firmware.hex:i
 | `program enable: target does not answer (0x01)` | Board off, pins not seated, connector rotated, or fresh chip at 1 MHz with fast SCK | Work through Step 1. |
 | Board shorts out and programmer disappears when connected | Connector rotated 180 degrees | Pin 1 is MISO at the marked corner. |
 | Serial console silent while programmer is attached | ATmega held in reset by the programmer | Normal. It restarts when you lift the pins. |
-| `urclock` upload times out | No bootloader on the chip, or wrong port | Do Step 3, or pass `--upload-port`. |
+| `urclock` upload times out | No bootloader on the chip, or wrong port | Do Step 3, or pin the port in `platformio.local.ini`. |
+| Upload sits at "Auto-detected" and never prints "Uploading" | FTDI adapter wedged on the USB/IP link | Kill the stuck `pio` process, `usbipd detach` and `attach` the adapter, retry. |
+| Two `ttyUSB` devices after a reattach | Stale entry left by usbipd | Use the by-id path; it only points at the live device. |
 
 ## Serial console commands
 
@@ -174,8 +184,25 @@ write <address> <value>      SPI write one byte, e.g. write 0x01FF 0xC0
 readmdc <phy> <reg>          MDIO read, e.g. readmdc 0x01 0x00
 writemdc <phy> <reg> <val>   MDIO write, e.g. writemdc 0x01 0x00 0x1234
 scanmdc                      Find the first responding PHY address
+reboot                       Restart the controller
+hang                         Stop servicing the watchdog, to prove it fires (test only)
 help                         List commands
 ```
+
+Boot output starts with the reset cause, then one verification line per chip:
+
+```
+Reset: external (MCUSR 0x8)
+Switch KSZ9897 rev 0: OK
+PHY 0x0 VSC8531 rev 2: OK
+PHY 0x10 VSC8531 rev 2: OK
+```
+
+Reset causes are `power-on`, `brown-out`, `external`, `software reboot`, and
+`watchdog (firmware hang)`. The hardware watchdog runs at 8 seconds. Because urboot exits
+to the application through its own watchdog, the raw MCUSR value reads 0x8 for external
+resets too; the firmware tells them apart with a marker it stamps before its own resets.
+A hang with interrupts disabled cannot stamp the marker and is reported as `external`.
 
 Switch addresses are 16-bit: `0xPFRR` where P is the port (0 = global), F the function
 block, RR the register. See the KSZ9897R datasheet section 5.

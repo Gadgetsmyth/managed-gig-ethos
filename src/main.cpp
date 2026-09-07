@@ -1,4 +1,5 @@
 #include <Arduino.h>
+#include "Watchdog.h"
 #include "SpiController.h"
 #include "MdcMdioController.h"
 #include "Terminal.h"
@@ -59,10 +60,14 @@ static bool verifyPhy(uint8_t phyAddr) {
 }
 
 void setup() {
+	// Guard bring-up as well as the main loop
+	Watchdog::begin();
+
 	digitalWrite(resetPin, LOW);
 	pinMode(resetPin, OUTPUT);
 	// Initialize serial communication at 57600 baud
 	Serial.begin(57600);
+	Watchdog::printResetCause();
 
 	// delay for the clock to be stable
 	delay(250);
@@ -92,6 +97,7 @@ void setup() {
 }
 
 void loop() {
+	Watchdog::kick();
 	// Process any incoming terminal commands
 	terminal.processInput();
 }
