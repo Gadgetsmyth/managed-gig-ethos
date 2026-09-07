@@ -1,6 +1,11 @@
 #include "Terminal.h"
 #include "Watchdog.h"
 
+// Set from `git describe` by scripts/git_version.py; fallback for other build setups.
+#ifndef FW_VERSION
+#define FW_VERSION "dev"
+#endif
+
 constexpr uint8_t Terminal::MAX_COMMAND_LENGTH;
 
 Terminal::Terminal(SpiController& spi, MdcMdioController& mdc)
@@ -8,8 +13,12 @@ Terminal::Terminal(SpiController& spi, MdcMdioController& mdc)
 	memset(inputBuffer, 0, MAX_COMMAND_LENGTH);
 }
 
+void Terminal::printBanner() {
+	Serial.println(F("managed-gig-ethos " FW_VERSION " built " __DATE__ " " __TIME__));
+}
+
 void Terminal::begin() {
-	Serial.println(F("Terminal initialized. Type 'help' for available commands."));
+	Serial.println(F("Type 'help' for available commands."));
 	printPrompt();
 }
 
@@ -76,6 +85,8 @@ void Terminal::processCommand() {
 		handleRebootCommand();
 	} else if (strcmp(inputBuffer, "hang") == 0) {
 		handleHangCommand();
+	} else if (strcmp(inputBuffer, "version") == 0) {
+		handleVersionCommand();
 	} else if (strcmp(inputBuffer, "help") == 0) {
 		handleHelpCommand();
 	} else {
@@ -309,6 +320,10 @@ void Terminal::handleHangCommand() {
 	}
 }
 
+void Terminal::handleVersionCommand() {
+	printBanner();
+}
+
 void Terminal::handleHelpCommand() {
 	Serial.println(F("Available commands:"));
 	Serial.println(F("  read <address> <count>     - Read <count> bytes from <address>"));
@@ -322,6 +337,7 @@ void Terminal::handleHelpCommand() {
 	Serial.println(F("  scanmdc                    - Scan for PHY devices"));
 	Serial.println(F("  reboot                     - Restart the controller"));
 	Serial.println(F("  hang                       - Stop kicking the watchdog (test)"));
+	Serial.println(F("  version                    - Show firmware version and build time"));
 	Serial.println(F("  help                       - Show this help message"));
 }
 

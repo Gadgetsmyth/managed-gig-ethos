@@ -10,6 +10,9 @@ class Terminal {
 public:
 	Terminal(SpiController& spi, MdcMdioController& mdc);
 
+	// Print the firmware name, version, and build time.
+	void printBanner();
+
 	// Initialize terminal
 	void begin();
 
@@ -24,6 +27,7 @@ public:
 	void handleScanMdcCommand(const char* args);
 	void handleRebootCommand();
 	void handleHangCommand();
+	void handleVersionCommand();
 	void handleHelpCommand();
 
 private:

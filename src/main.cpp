@@ -67,6 +67,7 @@ void setup() {
 	pinMode(resetPin, OUTPUT);
 	// Initialize serial communication at 57600 baud
 	Serial.begin(57600);
+	terminal.printBanner();
 	Watchdog::printResetCause();
 
 	// delay for the clock to be stable
