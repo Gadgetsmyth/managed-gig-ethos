@@ -131,18 +131,20 @@ void MdcMdioController::initializeDualPhy(uint8_t phyAddr, uint16_t rgmiiDelay) 
 	writeRegister(phyAddr, 0x16, 0x3201);
 	// do a soft reset
 	writeRegister(phyAddr, 0x00, 0x9040);
-	// set RGMII mode (bit 12 of register 0x17, default 0x2000)
-	writeRegister(phyAddr, 0x17, 0x3000);
+	// Select the RGMII MAC interface: register 23 bits 12:11 = 10. Takes effect at the
+	// following soft reset. Other bits are left alone; bit 13 (RX_CLK from REFCLK) in
+	// particular stays at its default of 0.
+	writeRegisterMasked(phyAddr, 0x17, 0x1000, 0x1800);
 	// soft reset again (set bit 15, default 0x1040)
 	writeRegister(phyAddr, 0x00, 0x9040);
 
-	// Adjust the clock control. Set register 0x1F to 2 to map the E2 address space,
-	// remapping registers 16-30 (0x10-0x1E) from the main space.
+	// RGMII clock delays live in extended page 2 (register 31 = 0x0002 remaps 16-30).
 	writeRegister(phyAddr, 0x1f, 0x0002);
-	// Register 0x14 in space 2 sets the clock delay: bits 2:0 are the GTX clock delay
-	// and bits 6:4 the RX delay; each step is +0.3ns (min 0.2ns). High nibble is the RX
-	// pair, low nibble the TX pair. The switch already compensates TX, so RX needs more
-	// delay. Bit 11 (default field 0x0800) is also cleared here.
+	// Register 20E2: bits 6:4 delay the RX_CLK the PHY drives toward the switch, bits 2:0
+	// delay the TX_CLK it receives. Codes 0-7 give 0.2, 0.8, 1.1, 1.7, 2.0, 2.3, 2.6 and
+	// 3.4 ns. Bits 15:8 are reserved. The switch adds no delay of its own on ports 6-7
+	// (0xN301 bits 4:3 are cleared in SpiController::begin), so these are the whole
+	// RGMII skew budget. Default 0x0042 is 2.0 ns RX / 1.1 ns TX.
 	// TODO: tune this value further - links up and passes traffic, but needs more testing.
 	writeRegister(phyAddr, 0x14, rgmiiDelay);
 	// reset the extended field
