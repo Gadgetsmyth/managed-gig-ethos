@@ -18,6 +18,13 @@ void Terminal::printBanner() {
 	Serial.println(F("managed-gig-ethos " FW_VERSION " built " __DATE__ " " __TIME__));
 }
 
+bool Terminal::printChipCheck() {
+	bool allOk = verifySwitch();
+	for (uint8_t phyAddr : Board::PHY_ADDRESSES)
+		allOk &= verifyPhy(phyAddr);
+	return allOk;
+}
+
 void Terminal::begin() {
 	Serial.println(F("Type 'help' for available commands."));
 	printPrompt();
@@ -84,6 +91,8 @@ void Terminal::processCommand() {
 		handleScanMdcCommand(args);
 	} else if (strcmp(inputBuffer, "status") == 0) {
 		handleStatusCommand();
+	} else if (strcmp(inputBuffer, "selftest") == 0) {
+		handleSelfTestCommand();
 	} else if (strcmp(inputBuffer, "reboot") == 0) {
 		handleRebootCommand();
 	} else if (strcmp(inputBuffer, "hang") == 0) {
@@ -342,6 +351,10 @@ void Terminal::handleStatusCommand() {
 	}
 }
 
+void Terminal::handleSelfTestCommand() {
+	printChipCheck();
+}
+
 void Terminal::handleRebootCommand() {
 	Serial.println(F("Rebooting..."));
 	Serial.flush();
@@ -372,6 +385,7 @@ void Terminal::handleHelpCommand() {
 	Serial.println(F("                             Example: writemdc 0x01 0x00 0x1234"));
 	Serial.println(F("  scanmdc                    - Scan for PHY devices"));
 	Serial.println(F("  status                     - Link, speed and duplex for all 7 ports"));
+	Serial.println(F("  selftest                   - Re-check switch and PHY chip IDs"));
 	Serial.println(F("  reboot                     - Restart the controller"));
 	Serial.println(F("  hang                       - Stop kicking the watchdog (test)"));
 	Serial.println(F("  version                    - Show firmware version and build time"));
@@ -410,6 +424,49 @@ void Terminal::printLinkState(bool linkUp, uint8_t speedCode, bool fullDuplex) {
 		break;
 	}
 	Serial.print(fullDuplex ? F("full") : F("half"));
+}
+
+// Confirm the switch answers with the KSZ9897 chip ID. Prints one status line.
+bool Terminal::verifySwitch() {
+	uint16_t chipId = 0;
+	for (uint8_t attempt = 0; attempt < ID_CHECK_ATTEMPTS; attempt++) {
+		chipId = spiController.readChipId();
+		if (chipId == SpiController::KSZ9897_CHIP_ID) {
+			Serial.print(F("Switch KSZ9897 rev "));
+			Serial.print(spiController.readRevision());
+			Serial.println(F(": OK"));
+			return true;
+		}
+		delay(10);
+	}
+	Serial.print(F("Switch: FAIL (id "));
+	printHexWord(chipId);
+	Serial.println(')');
+	return false;
+}
+
+// Confirm the PHY at phyAddr answers with the VSC8531 identifier. Prints one status line.
+bool Terminal::verifyPhy(uint8_t phyAddr) {
+	uint32_t phyId = 0;
+	for (uint8_t attempt = 0; attempt < ID_CHECK_ATTEMPTS; attempt++) {
+		phyId = mdcController.readPhyId(phyAddr);
+		if ((phyId & ~MdcMdioController::PHY_ID_REVISION_MASK) ==
+			MdcMdioController::VSC8531_PHY_ID) {
+			Serial.print(F("PHY "));
+			printHexByte(phyAddr);
+			Serial.print(F(" VSC8531 rev "));
+			Serial.print(static_cast<uint8_t>(phyId & MdcMdioController::PHY_ID_REVISION_MASK));
+			Serial.println(F(": OK"));
+			return true;
+		}
+		delay(10);
+	}
+	Serial.print(F("PHY "));
+	printHexByte(phyAddr);
+	Serial.print(F(": FAIL (id 0x"));
+	Serial.print(phyId, HEX);
+	Serial.println(')');
+	return false;
 }
 
 // Print a byte as "0x" followed by two zero-padded hex digits.

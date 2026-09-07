@@ -185,6 +185,7 @@ readmdc <phy> <reg>          MDIO read, e.g. readmdc 0x01 0x00
 writemdc <phy> <reg> <val>   MDIO write, e.g. writemdc 0x01 0x00 0x1234
 scanmdc                      Find the first responding PHY address
 status                       Link, speed and duplex for all 7 ports
+selftest                     Re-check the switch and PHY chip IDs
 version                      Firmware version and build time
 reboot                       Restart the controller
 hang                         Stop servicing the watchdog, to prove it fires (test only)
