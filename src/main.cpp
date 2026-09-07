@@ -4,10 +4,16 @@
 #include "SpiController.h"
 #include "MdcMdioController.h"
 #include "Terminal.h"
+#include "LinkSync.h"
 
 SpiController spiController(Board::SWITCH_CS_PIN);
 MdcMdioController mdcController(Board::MDC_PIN, Board::MDIO_PIN);
 Terminal terminal(spiController, mdcController);
+LinkSync linkSync(mdcController, spiController);
+
+// How often the external PHYs are polled to keep the RGMII MAC speed in step.
+static constexpr unsigned long LINK_POLL_INTERVAL_MS = 100;
+static unsigned long lastLinkPollMs = 0;
 
 void setup() {
 	// Guard bring-up as well as the main loop
@@ -49,4 +55,10 @@ void loop() {
 	Watchdog::kick();
 	// Process any incoming terminal commands
 	terminal.processInput();
+
+	unsigned long now = millis();
+	if (now - lastLinkPollMs >= LINK_POLL_INTERVAL_MS) {
+		lastLinkPollMs = now;
+		linkSync.poll();
+	}
 }

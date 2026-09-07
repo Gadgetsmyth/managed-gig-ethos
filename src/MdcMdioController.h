@@ -32,8 +32,12 @@ public:
 	static constexpr uint8_t AUX_STATUS_SPEED_MASK = 0x03;
 	static constexpr uint16_t AUX_STATUS_FULL_DUPLEX = 0x0020;
 
-	// Apply the dual-PHY bring-up register sequence to the PHY at phyAddr.
-	void initializeDualPhy(uint8_t phyAddr = 0x00);
+	// Default for register 20E2: RX_CLK delay 2.0 ns (bits 6:4), TX_CLK delay 1.1 ns (bits 2:0).
+	static constexpr uint16_t DEFAULT_RGMII_DELAY = 0x0042;
+
+	// Apply the bring-up register sequence to the PHY at phyAddr, ending with the given
+	// RGMII clock delay value in register 20E2.
+	void initializeDualPhy(uint8_t phyAddr = 0x00, uint16_t rgmiiDelay = DEFAULT_RGMII_DELAY);
 
 private:
 	const int mdcPin;

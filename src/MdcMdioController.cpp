@@ -13,7 +13,7 @@ void MdcMdioController::begin() {
 	pinMode(mdioPin, OUTPUT);
 }
 
-void MdcMdioController::initializeDualPhy(uint8_t phyAddr) {
+void MdcMdioController::initializeDualPhy(uint8_t phyAddr, uint16_t rgmiiDelay) {
 	// set standard page section
 	writeRegister(phyAddr, 0x1f, 0x0000);
 	// hardware bringup
@@ -138,7 +138,7 @@ void MdcMdioController::initializeDualPhy(uint8_t phyAddr) {
 	// pair, low nibble the TX pair. The switch already compensates TX, so RX needs more
 	// delay. Bit 11 (default field 0x0800) is also cleared here.
 	// TODO: tune this value further - links up and passes traffic, but needs more testing.
-	writeRegister(phyAddr, 0x14, 0x0042);
+	writeRegister(phyAddr, 0x14, rgmiiDelay);
 	// reset the extended field
 	writeRegister(phyAddr, 0x1f, 0x0000);
 

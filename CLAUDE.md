@@ -52,9 +52,10 @@ pio run -t compiledb
 The application in `src/main.cpp` wires together three controllers as file-scope globals and
 delegates serial commands to them. All classes (`.h` + `.cpp`) live flat in `src/`:
 
-- **`SpiController`** (`src/SpiController.{h,cpp}`): Manages SPI bus communication with PHY chips
+- **`SpiController`** (`src/SpiController.{h,cpp}`): SPI access to the KSZ9897R switch, including burst 16-bit reads/writes, MMD access to the five internal PHYs, and the errata workarounds (`applySwitchErrata`) applied in `begin()`
 - **`MdcMdioController`** (`src/MdcMdioController.{h,cpp}`): Bit-bangs the MDC (clock, A5/PC5) and MDIO (data, A4/PC4) bus for PHY register access; includes `initializeDualPhy()` for dual-PHY setup with patch registers
 - **`Terminal`** (`src/Terminal.{h,cpp}`): Serial terminal (57600 baud) that accepts commands and delegates to the SPI/MDC controllers. Also owns all console formatting, including the boot-time chip ID check (`printChipCheck`) reused by the `selftest` command
+- **`LinkSync`** (`src/LinkSync.{h,cpp}`): Polled from `loop()` every 100 ms. Reads link/speed/duplex from each external VSC8531 and reprograms the KSZ9897R's fixed-speed RGMII MAC registers (`0xN300`/`0xN301`) for ports 6-7 to match. Without it, 10/100 partners on those ports pass no traffic
 - **`Board.h`**: Pin assignments, port count, and the switch-port-to-PHY-address mapping. The single source of truth for how the chips are wired
 - **`Watchdog`** (`src/Watchdog.{h,cpp}`): Static class. 8 s hardware watchdog in interrupt-then-reset mode, reset-cause capture from `.init3` (urboot passes MCUSR in r2), and `reboot()`. Markers in `.noinit` distinguish firmware watchdog resets from urboot's watchdog-based exit after an external reset.
 

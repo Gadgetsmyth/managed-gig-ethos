@@ -193,16 +193,23 @@ help                         List commands
 ```
 
 `status` reads ports 1-5 from the switch's internal PHYs and ports 6-7 from the external
-PHYs over MDIO. For 6 and 7 it also shows the switch's fixed RGMII MAC setting, so a
-speed mismatch between PHY and MAC is visible:
+PHYs over MDIO. For 6 and 7 it also shows the switch's RGMII MAC setting. The switch
+cannot learn link speed on those ports itself, so the firmware polls the PHYs every
+100 ms and reprograms the MAC to match; the two columns should always agree once a link
+is up:
 
 ```
 Port  Link  Speed  Duplex
 1     up    1000   full
 2     down
 ...
-6     down  (PHY 0x00, MAC up    1000   full)
+6     up    100    full  (PHY 0x00, MAC up    100    full)
+7     down  (PHY 0x10, MAC up    1000   full)
 ```
+
+At boot the firmware also applies the KSZ9897R errata workarounds to the five internal
+PHYs (receive tuning, transmit amplitude, EEE disable, supply current) and the two
+global fixes for pause frames and back pressure. See `docs/` for the errata sheet.
 
 Boot output starts with the firmware version and reset cause, then one verification
 line per chip:

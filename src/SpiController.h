@@ -19,8 +19,9 @@ public:
 	uint8_t readRegister(uint8_t port, uint8_t function, uint8_t registerAddr);
 	void writeRegister(uint8_t port, uint8_t function, uint8_t registerAddr, uint8_t data);
 
-	// Burst read of a big-endian 16-bit register pair starting at registerAddr.
+	// Burst read/write of a big-endian 16-bit register pair starting at registerAddr.
 	uint16_t readRegister16(uint8_t port, uint8_t function, uint8_t registerAddr);
+	void writeRegister16(uint8_t port, uint8_t function, uint8_t registerAddr, uint16_t data);
 
 	// Chip identification from the global registers.
 	uint16_t readChipId();
@@ -43,6 +44,13 @@ private:
 	// Assert chip select and send the 32-bit command/address phase; endTransfer() releases.
 	void startTransfer(uint8_t command, uint16_t address);
 	void endTransfer();
+
+	// Indirect (Clause 45 MMD) write to an internal PHY on ports 1-5.
+	void writePhyMmd(uint8_t port, uint8_t mmd, uint16_t mmdReg, uint16_t data);
+
+	// KSZ9897R errata workarounds (DS80000758): per internal PHY, then global.
+	void applyPhyErrata(uint8_t port);
+	void applySwitchErrata();
 
 	// SPI configuration
 	const int csPin;
