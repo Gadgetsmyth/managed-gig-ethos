@@ -18,6 +18,16 @@ void SpiController::begin() {
 	writeRegister(7, 3, 1, 0x00);
 }
 
+uint16_t SpiController::readChipId() {
+	uint16_t chipId = readRegister(0, 0, 0x01);
+	return (chipId << 8) | readRegister(0, 0, 0x02);
+}
+
+// Silicon revision is the high nibble of global register 0x0003.
+uint8_t SpiController::readRevision() {
+	return readRegister(0, 0, 0x03) >> 4;
+}
+
 uint16_t SpiController::constructAddress(uint8_t port, uint8_t function, uint8_t registerAddr) {
 	// Validate inputs
 	if (port > 7)

@@ -147,6 +147,11 @@ void MdcMdioController::initializeDualPhy(uint8_t phyAddr) {
 	writeRegister(phyAddr, 0x16, 0x3200);
 }
 
+uint32_t MdcMdioController::readPhyId(uint8_t phyAddr) {
+	uint32_t phyId = readRegister(phyAddr, 0x02);
+	return (phyId << 16) | readRegister(phyAddr, 0x03);
+}
+
 void MdcMdioController::clockBit(bool mdioValue) {
 	digitalWrite(mdcPin, LOW);
 	digitalWrite(mdioPin, mdioValue);
