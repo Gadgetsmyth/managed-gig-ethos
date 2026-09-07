@@ -28,7 +28,7 @@ void MdcMdioController::begin()
     // set rgmii mode set bit 12 register 23 (0x17, default is 0x2000)
 }
 
-void MdcMdioController::initialize_dual_phy(uint8_t address = 0x00)
+void MdcMdioController::initialize_dual_phy(uint8_t address, uint16_t delayVal)
 {
 
     // set standard page section
@@ -182,7 +182,7 @@ void MdcMdioController::initialize_dual_phy(uint8_t address = 0x00)
     // the high nibble is for the rx pair, the low is the tx pair, the switch compentsates the tx already, but the rx needs more delay,
     // we also need to clear bit 11, the default field is 0x0800 we change it to 0x0031
     // TODO: TUNE THIS NUMBER BETTER< THIS LINKS UP AND TALKS< but requires further testing
-    writeMdc(address, 0x14, 0x0042);
+    writeMdc(address, 0x14, delayVal);
     // reset the extended field
     writeMdc(address, 0x1f, 0x0000);
 

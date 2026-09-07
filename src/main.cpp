@@ -20,13 +20,17 @@
 #include "SpiController.h"
 #include "MdcMdioController.h"
 #include "Terminal.h"
+#include "LinkSync.h"
 
 // Create SPI controller and Terminal instances
 SpiController spiController;
 // MDC on PC5 (A5), MDIO on PC4 (A4)
 MdcMdioController mdcController(A5, A4);
 Terminal terminal(spiController, mdcController);
+LinkSync linkSync(mdcController, spiController);
 const int resetPin = A1;
+static unsigned long lastLinkPollMs = 0;
+static const unsigned long LINK_POLL_INTERVAL_MS = 100;
 
 void setup()
 {
@@ -47,8 +51,8 @@ void setup()
     // Initialize terminal
     terminal.begin();
 
-    mdcController.initialize_dual_phy(0x00);
-    mdcController.initialize_dual_phy(0x10);
+    mdcController.initialize_dual_phy(0x00, 0x0042);
+    mdcController.initialize_dual_phy(0x10, 0x0042);
     
 
     delay(250);
@@ -59,6 +63,11 @@ void setup()
 
 void loop()
 {
-    // Process any incoming terminal commands
     terminal.processInput();
+
+    const unsigned long now = millis();
+    if ((now - lastLinkPollMs) >= LINK_POLL_INTERVAL_MS) {
+        lastLinkPollMs = now;
+        linkSync.pollAndSyncBoth();
+    }
 }
