@@ -13,7 +13,7 @@ void MdcMdioController::begin() {
 	pinMode(mdioPin, OUTPUT);
 }
 
-void MdcMdioController::initializeDualPhy(uint8_t phyAddr) {
+void MdcMdioController::initializeDualPhy(uint8_t phyAddr, uint16_t rgmiiDelay) {
 	// set standard page section
 	writeRegister(phyAddr, 0x1f, 0x0000);
 	// hardware bringup
@@ -23,28 +23,32 @@ void MdcMdioController::initializeDualPhy(uint8_t phyAddr) {
 	// switch to the test page
 	writeRegister(phyAddr, 0x1f, 0x2A30);
 
-	writeRegisterMasked(phyAddr, 0x18, 0x0000, 0x0400); // clear bias bit for 1000BT distortion
-	writeRegisterMasked(phyAddr, 0x05, 0x0c00, 0x0e00); // optimize pre-emphasis for 100basetx
-	writeRegisterMasked(phyAddr, 0x08, 0x8000, 0x8000); // token ring enable
+	// Analog trims from Microchip's VSC8531 init sequence (as in the Linux mscc driver).
+	writeRegisterMasked(phyAddr, 0x18, 0x0400, 0x0400); // 1000BASE-T bias
+	writeRegisterMasked(phyAddr, 0x05, 0x0a00, 0x0e00); // 100BASE-TX pre-emphasis
+	writeRegisterMasked(phyAddr, 0x08, 0x8000, 0x8000); // token ring clock enable
 
 	// change to token ring page
 	writeRegister(phyAddr, 0x1f, 0x52B5);
 
-	// Token-ring patch: each group programs registers 18/17/16 (0x12/0x11/0x10).
+	// Token-ring writes: 32-bit value in registers 18/17 (0x12 MSB, 0x11 LSB), then the
+	// target address with the write bit (0x8000) in register 16 (0x10). Values are the
+	// VSC8531 sequence from the Linux mscc driver (vsc8531_pre_init_seq_set and
+	// vsc85xx_eee_init_seq_set); they are characterization results, not documented bits.
 	writeRegister(phyAddr, 0x12, 0x0068);
 	writeRegister(phyAddr, 0x11, 0x8980);
 	writeRegister(phyAddr, 0x10, 0x8f90);
 
 	writeRegister(phyAddr, 0x12, 0x0000);
 	writeRegister(phyAddr, 0x11, 0x0003);
-	writeRegister(phyAddr, 0x10, 0x8796);
+	writeRegister(phyAddr, 0x10, 0x8696);
 
 	writeRegister(phyAddr, 0x12, 0x0050);
 	writeRegister(phyAddr, 0x11, 0x100f);
 	writeRegister(phyAddr, 0x10, 0x87fa);
 
 	writeRegister(phyAddr, 0x12, 0x0012);
-	writeRegister(phyAddr, 0x11, 0xb002);
+	writeRegister(phyAddr, 0x11, 0xb00a);
 	writeRegister(phyAddr, 0x10, 0x8f82);
 
 	writeRegister(phyAddr, 0x12, 0x0000);
@@ -87,13 +91,17 @@ void MdcMdioController::initializeDualPhy(uint8_t phyAddr) {
 	writeRegister(phyAddr, 0x11, 0x1600);
 	writeRegister(phyAddr, 0x10, 0x8fea);
 
-	writeRegister(phyAddr, 0x12, 0x00ff);
-	writeRegister(phyAddr, 0x11, 0xfaff);
+	writeRegister(phyAddr, 0x12, 0x0000);
+	writeRegister(phyAddr, 0x11, 0x0af4);
 	writeRegister(phyAddr, 0x10, 0x8f80);
 
 	writeRegister(phyAddr, 0x12, 0x0090);
 	writeRegister(phyAddr, 0x11, 0x1809);
 	writeRegister(phyAddr, 0x10, 0x8fec);
+
+	writeRegister(phyAddr, 0x12, 0x0000);
+	writeRegister(phyAddr, 0x11, 0xa6a1);
+	writeRegister(phyAddr, 0x10, 0x8fee);
 
 	writeRegister(phyAddr, 0x12, 0x00b0);
 	writeRegister(phyAddr, 0x11, 0x1007);
@@ -114,7 +122,7 @@ void MdcMdioController::initializeDualPhy(uint8_t phyAddr) {
 	// switch to the test page
 	writeRegister(phyAddr, 0x1f, 0x2A30);
 
-	writeRegisterMasked(phyAddr, 0x08, 0x0000, 0x8000); // token ring enable
+	writeRegisterMasked(phyAddr, 0x08, 0x0000, 0x8000); // token ring clock back off
 
 	// set standard page section
 	writeRegister(phyAddr, 0x1f, 0x0000);
@@ -123,28 +131,42 @@ void MdcMdioController::initializeDualPhy(uint8_t phyAddr) {
 	writeRegister(phyAddr, 0x16, 0x3201);
 	// do a soft reset
 	writeRegister(phyAddr, 0x00, 0x9040);
-	// set RGMII mode (bit 12 of register 0x17, default 0x2000)
-	writeRegister(phyAddr, 0x17, 0x3000);
+	// Select the RGMII MAC interface: register 23 bits 12:11 = 10. Takes effect at the
+	// following soft reset. Other bits are left alone; bit 13 (RX_CLK from REFCLK) in
+	// particular stays at its default of 0.
+	writeRegisterMasked(phyAddr, 0x17, 0x1000, 0x1800);
 	// soft reset again (set bit 15, default 0x1040)
 	writeRegister(phyAddr, 0x00, 0x9040);
 
-	// TODO: APPLY PRODUCTION PATCH HERE!
-
-	// Adjust the clock control. Set register 0x1F to 2 to map the E2 address space,
-	// remapping registers 16-30 (0x10-0x1E) from the main space.
+	// RGMII clock delays live in extended page 2 (register 31 = 0x0002 remaps 16-30).
 	writeRegister(phyAddr, 0x1f, 0x0002);
-	// Register 0x14 in space 2 sets the clock delay: bits 2:0 are the GTX clock delay
-	// and bits 6:4 the RX delay; each step is +0.3ns (min 0.2ns). High nibble is the RX
-	// pair, low nibble the TX pair. The switch already compensates TX, so RX needs more
-	// delay. Bit 11 (default field 0x0800) is also cleared here.
+	// Register 20E2: bits 6:4 delay the RX_CLK the PHY drives toward the switch, bits 2:0
+	// delay the TX_CLK it receives. Codes 0-7 give 0.2, 0.8, 1.1, 1.7, 2.0, 2.3, 2.6 and
+	// 3.4 ns. Bits 15:8 are reserved. The switch adds no delay of its own on ports 6-7
+	// (0xN301 bits 4:3 are cleared in SpiController::begin), so these are the whole
+	// RGMII skew budget. Default 0x0042 is 2.0 ns RX / 1.1 ns TX.
 	// TODO: tune this value further - links up and passes traffic, but needs more testing.
-	writeRegister(phyAddr, 0x14, 0x0042);
+	writeRegister(phyAddr, 0x14, rgmiiDelay);
 	// reset the extended field
 	writeRegister(phyAddr, 0x1f, 0x0000);
 
 	writeRegister(phyAddr, 0x00, 0x9040);
 	// turn smi duplication back off
 	writeRegister(phyAddr, 0x16, 0x3200);
+}
+
+uint32_t MdcMdioController::readPhyId(uint8_t phyAddr) {
+	uint32_t phyId = readRegister(phyAddr, 0x02);
+	return (phyId << 16) | readRegister(phyAddr, 0x03);
+}
+
+bool MdcMdioController::readLinkStatus(uint8_t phyAddr) {
+	readRegister(phyAddr, 0x01);
+	return readRegister(phyAddr, 0x01) & _BV(2);
+}
+
+uint16_t MdcMdioController::readAuxStatus(uint8_t phyAddr) {
+	return readRegister(phyAddr, 0x1C);
 }
 
 void MdcMdioController::clockBit(bool mdioValue) {
