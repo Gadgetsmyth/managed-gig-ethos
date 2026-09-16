@@ -41,8 +41,7 @@ public:
 	// Link state of an internal PHY port (1-5), from the latched-low IEEE status bit.
 	bool readInternalPhyLink(uint8_t port);
 
-	// Power an internal PHY (ports 1-5) down or back up. Powering up also restarts
-	// autonegotiation so the link partner sees a fresh link.
+	// Power an internal PHY (ports 1-5) down or back up, which renegotiates the link.
 	void setInternalPhyPowerDown(uint8_t port, bool down);
 
 	// Port MSTP state (0xNB04): let the port forward traffic and learn addresses, or

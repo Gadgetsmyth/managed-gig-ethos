@@ -67,7 +67,8 @@ static const MibEntry MIB_TABLE[] PROGMEM = {
 static constexpr uint8_t MIB_COUNT = sizeof(MIB_TABLE) / sizeof(MIB_TABLE[0]);
 
 Terminal::Terminal(SpiController& spi, MdcMdioController& mdc, Settings& settings)
-	: spiController(spi), mdcController(mdc), settings(settings), inputIndex(0) {
+	: spiController(spi), mdcController(mdc), settings(settings), inputIndex(0),
+	  lastCharWasCr(false) {
 	memset(inputBuffer, 0, MAX_COMMAND_LENGTH);
 }
 
@@ -92,8 +93,7 @@ void Terminal::applySettingsAtBoot() {
 }
 
 // A disabled port is blocked in the switch fabric and its PHY is powered down, so the
-// link partner sees the cable as unplugged. Enabling reverses both and restarts
-// autonegotiation.
+// link partner sees the cable as unplugged. Enabling reverses both.
 void Terminal::setPortEnabled(uint8_t port, bool enabled) {
 	spiController.setPortForwarding(port, enabled);
 	if (Board::isExternalPort(port))
@@ -114,7 +114,9 @@ void Terminal::applyMirror() {
 }
 
 void Terminal::printLinkEvent(uint8_t port, bool linkUp, uint8_t speedCode, bool fullDuplex) {
-	Serial.println();
+	// Return to column 0 and erase the prompt line, so the event replaces it rather than
+	// leaving an empty prompt above itself. The prompt and any typed text are redrawn after.
+	Serial.print(F("\r\x1b[K"));
 	Serial.print(F("link: port "));
 	Serial.print(port);
 	Serial.print(' ');
@@ -144,18 +146,21 @@ void Terminal::processInput() {
 			return;
 		}
 
-		// Handle newline/return
+		// A line ends at CR or LF. A LF straight after a CR is the second half of a CR+LF
+		// pair and is ignored, so terminals that send either convention get one prompt.
 		if (c == '\n' || c == '\r') {
-			// Only process if it's a complete line (not just a partial line)
-			if (c == '\n' || (c == '\r' && Serial.peek() != '\n')) {
-				Serial.println();
-				if (inputIndex > 0) {
-					processCommand();
-				}
-				printPrompt();
+			bool secondHalfOfCrLf = c == '\n' && lastCharWasCr;
+			lastCharWasCr = c == '\r';
+			if (secondHalfOfCrLf)
+				return;
+			Serial.println();
+			if (inputIndex > 0) {
+				processCommand();
 			}
+			printPrompt();
 			return;
 		}
+		lastCharWasCr = false;
 
 		// Add character to buffer if there's space
 		if (inputIndex < MAX_COMMAND_LENGTH - 1) {

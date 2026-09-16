@@ -158,13 +158,12 @@ void MdcMdioController::setRgmiiDelay(uint8_t phyAddr, uint16_t rgmiiDelay) {
 	writeRegister(phyAddr, 0x00, 0x9040);
 }
 
-// IEEE control register 0: bit 11 powers the PHY down, bit 9 restarts autonegotiation.
+// IEEE control register 0 bit 11. Leaving power-down restarts autonegotiation by itself;
+// also setting the restart bit made the link come up and drop once more on the bench.
 void MdcMdioController::setPowerDown(uint8_t phyAddr, bool down) {
 	static constexpr uint16_t CONTROL_POWER_DOWN = 0x0800;
-	static constexpr uint16_t CONTROL_RESTART_ANEG = 0x0200;
 
-	writeRegisterMasked(phyAddr, 0x00, down ? CONTROL_POWER_DOWN : CONTROL_RESTART_ANEG,
-		CONTROL_POWER_DOWN | CONTROL_RESTART_ANEG);
+	writeRegisterMasked(phyAddr, 0x00, down ? CONTROL_POWER_DOWN : 0, CONTROL_POWER_DOWN);
 }
 
 uint32_t MdcMdioController::readPhyId(uint8_t phyAddr) {

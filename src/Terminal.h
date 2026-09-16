@@ -72,6 +72,7 @@ private:
 	Settings& settings;
 	char inputBuffer[MAX_COMMAND_LENGTH];
 	int inputIndex;
+	bool lastCharWasCr;
 
 	// Helper functions
 	void processCommand();

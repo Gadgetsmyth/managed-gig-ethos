@@ -32,8 +32,10 @@ public:
 	static constexpr uint8_t AUX_STATUS_SPEED_MASK = 0x03;
 	static constexpr uint16_t AUX_STATUS_FULL_DUPLEX = 0x0020;
 
-	// Default for register 20E2: RX_CLK delay 2.0 ns (bits 6:4), TX_CLK delay 1.1 ns (bits 2:0).
-	static constexpr uint16_t DEFAULT_RGMII_DELAY = 0x0042;
+	// Default for register 20E2: RX_CLK delay 2.0 ns (bits 6:4), TX_CLK delay 2.0 ns (bits 2:0).
+	// 0x0042 (1.1 ns TX) and 0x0044 both ran error-free at 941 Mbit/s on the bench; 0x0044
+	// leaves more margin against the switch's 1.0 ns receive minimum.
+	static constexpr uint16_t DEFAULT_RGMII_DELAY = 0x0044;
 
 	// Apply the bring-up register sequence to the PHY at phyAddr, ending with the given
 	// RGMII clock delay value in register 20E2.
@@ -43,8 +45,7 @@ public:
 	// drops and renegotiates.
 	void setRgmiiDelay(uint8_t phyAddr, uint16_t rgmiiDelay);
 
-	// Power the PHY down (link drops, partner sees no link) or back up. Powering up also
-	// restarts autonegotiation.
+	// Power the PHY down (link drops, partner sees no link) or back up, which renegotiates.
 	void setPowerDown(uint8_t phyAddr, bool down);
 
 private:

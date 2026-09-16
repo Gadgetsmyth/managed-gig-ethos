@@ -195,13 +195,14 @@ bool SpiController::readInternalPhyLink(uint8_t port) {
 	return readRegister16(port, 1, 0x02) & _BV(2);
 }
 
-// IEEE control is at 0xN100: bit 11 powers the PHY down, bit 9 restarts autonegotiation.
+// IEEE control is at 0xN100; bit 11 powers the PHY down. Leaving power-down restarts
+// autonegotiation on its own.
 void SpiController::setInternalPhyPowerDown(uint8_t port, bool down) {
 	static constexpr uint16_t CONTROL_POWER_DOWN = 0x0800;
-	static constexpr uint16_t CONTROL_RESTART_ANEG = 0x0200;
 
-	uint16_t control = readRegister16(port, 1, 0x00) & ~(CONTROL_POWER_DOWN | CONTROL_RESTART_ANEG);
-	control |= down ? CONTROL_POWER_DOWN : CONTROL_RESTART_ANEG;
+	uint16_t control = readRegister16(port, 1, 0x00) & ~CONTROL_POWER_DOWN;
+	if (down)
+		control |= CONTROL_POWER_DOWN;
 	writeRegister16(port, 1, 0x00, control);
 }
 
