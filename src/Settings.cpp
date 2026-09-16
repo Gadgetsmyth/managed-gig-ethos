@@ -12,7 +12,11 @@ void Settings::setDefaults() {
 	for (uint8_t i = 0; i < Board::PORT_COUNT; i++) {
 		data.membership[i] = Board::ALL_PORTS_MASK;
 		data.speed[i] = Phy::SPEED_AUTO;
+		data.priority[i] = 0;
+		data.ingressLimit[i] = 0;
+		data.egressLimit[i] = 0;
 	}
+	data.qos = false;
 	data.mirrorSource = 0;
 	data.mirrorDest = 0;
 	data.mirrorMode = MIRROR_RX | MIRROR_TX;

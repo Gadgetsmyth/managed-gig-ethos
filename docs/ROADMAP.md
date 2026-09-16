@@ -8,11 +8,11 @@ decisions are in `docs/HANDOFF.md`.
 | Version | Contents | State |
 |---|---|---|
 | v0.1 | Reliability baseline: flash strings, watchdog with reset-cause reporting, chip ID checks at boot, `status`, `version`, KSZ9897R errata, MAC-follows-PHY speed tracking on ports 6-7 | Merged (PR #3), not yet tagged |
-| v0.2 | Managed-switch commands: `port`, `speed`, `isolate`, `mirror`, `counters`, `log`, `rgmii`, plus `show` / `save` / `defaults` with EEPROM persistence | Bench-tested 2026-09-15, all steps pass except `mirror`, which needs a capture host |
+| v0.2 | Managed-switch commands: `port`, `speed`, `qos`, `ratelimit`, `isolate`, `mirror`, `counters`, `log`, `rgmii`, plus `show` / `save` / `defaults` with EEPROM persistence | Bench-tested 2026-09-15, all steps pass except `mirror`, which needs a capture host. `qos` and `ratelimit` added afterwards, see step 12 |
 | v0.3 | Below | Planned |
 
-Footprint after v0.2: 20.8 KB flash of 32 KB (urboot takes the top 0.5 KB), 306 bytes
-static RAM of 2 KB. About 11 KB of flash remains for v0.3.
+Footprint after v0.2: 22.9 KB flash of 32 KB (urboot takes the top 0.5 KB), 328 bytes
+static RAM of 2 KB. About 9 KB of flash remains for v0.3.
 
 ## v0.2 bench test plan
 
@@ -47,6 +47,11 @@ and internal PHY paths: 94.0/94.4 Mbit/s at forced 100 with zero collisions or e
     `link: port 6 up 100 full`, `status` showing 100 full on both the PHY and MAC columns,
     and iperf around 94 Mbit/s. `speed 6 auto` returns it to 1000. Repeat `speed 1 100`
     on the router port to exercise the internal-PHY path.
+12. `ratelimit 6 out 110` then iperf from the Ubuntu box toward the PC (reverse mode):
+    expect about 105 Mbit/s. `ratelimit 6 in 110` and a forward run: expect the same, and
+    `counters 6` showing RxDropped climbing. `ratelimit 6 in off` / `out off` restores
+    941 Mbit/s. `qos on`, `qos 6 7`, `show`: expect the QoS line and Prio column, and
+    iperf unchanged (a single flow cannot show queueing). `qos off`.
 
 ## v0.3
 
@@ -77,7 +82,10 @@ its own, per the one-step-at-a-time working style.
    parser and `Settings` CRC/round-trip, plus a GitHub Actions workflow that builds both
    environments and runs `clang-format --dry-run`.
 8. **Uptime and last reset cause in `status`.** Cheap, useful in the field.
-9. **Tagged 802.1Q VLANs.** Per-port PVID, tagged/untagged membership through the VLAN
+9. **QoS extras.** DSCP classification (`0xN801` bit 1 plus the global DSCP map), strict
+   priority scheduling as an option (`0xN914`, indexed per queue), and queue-based rate
+   limits. The v0.2 `qos` command covers port priority and 802.1p only.
+10. **Tagged 802.1Q VLANs.** Per-port PVID, tagged/untagged membership through the VLAN
     table (`0x0400` block indirect access) and ingress filtering. The largest v0.3 item and
     the one most likely to need the remaining flash budget; scope it last.
 

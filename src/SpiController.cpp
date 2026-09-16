@@ -214,6 +214,12 @@ void SpiController::setInternalPhySpeed(uint8_t port, uint8_t speed) {
 		port, 1, 2 * Phy::REG_CONTROL, Phy::CONTROL_RESTART_ANEG, Phy::CONTROL_RESTART_ANEG);
 }
 
+void SpiController::writeRegisterMasked(
+	uint8_t port, uint8_t function, uint8_t registerAddr, uint8_t data, uint8_t mask) {
+	uint8_t current = readRegister(port, function, registerAddr);
+	writeRegister(port, function, registerAddr, (current & ~mask) | (data & mask));
+}
+
 void SpiController::writeRegister16Masked(
 	uint8_t port, uint8_t function, uint8_t registerAddr, uint16_t data, uint16_t mask) {
 	uint16_t current = readRegister16(port, function, registerAddr);
@@ -247,6 +253,42 @@ void SpiController::setPortMirroring(uint8_t port, bool sniffer, bool mirrorRx, 
 	if (mirrorTx)
 		control |= MIRROR_TX_SNIFF;
 	writeRegister(port, 8, 0x00, control);
+}
+
+void SpiController::setPortFourQueues(uint8_t port, bool fourQueues) {
+	static constexpr uint8_t QUEUE_SPLIT_MASK = 0x03;
+	static constexpr uint8_t QUEUE_SPLIT_FOUR = 0x02;
+
+	writeRegisterMasked(port, 0, 0x20, fourQueues ? QUEUE_SPLIT_FOUR : 0, QUEUE_SPLIT_MASK);
+}
+
+void SpiController::setPort8021pClassification(uint8_t port, bool enabled) {
+	static constexpr uint8_t CLASSIFY_8021P = 0x04;
+
+	writeRegisterMasked(port, 8, 0x01, enabled ? CLASSIFY_8021P : 0, CLASSIFY_8021P);
+}
+
+void SpiController::setPortDefaultPriority(uint8_t port, uint8_t priority) {
+	writeRegisterMasked(port, 8, 0x02, priority, 0x07);
+}
+
+// Ingress limiting is switched to port-based (0xN403 bit 6) so only the priority 0 rate
+// register (0xN410) applies; the switch latches the new rate when the priority 7 register
+// (0xN417) is written.
+void SpiController::setIngressRateLimit(uint8_t port, uint8_t code) {
+	static constexpr uint8_t INGRESS_PORT_BASED = 0x40;
+
+	writeRegisterMasked(port, 4, 0x03, INGRESS_PORT_BASED, INGRESS_PORT_BASED);
+	writeRegister(port, 4, 0x10, code);
+	writeRegister(port, 4, 0x17, 0x00);
+}
+
+// Egress limiting is port-based by default (switch MAC control 5, 0x0335 bit 3 clear), so
+// only the queue 0 register (0xN420) applies; writing the queue 3 register (0xN423)
+// latches the new rate.
+void SpiController::setEgressRateLimit(uint8_t port, uint8_t code) {
+	writeRegister(port, 4, 0x20, code);
+	writeRegister(port, 4, 0x23, 0x00);
 }
 
 // Port MIB control (0xN500): bit 25 starts a read and clears when the value has landed

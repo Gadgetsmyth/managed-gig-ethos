@@ -184,6 +184,9 @@ Switch management:
 status                       Link, speed and duplex for all 7 ports ("off" if disabled)
 port <n> on|off              Enable or disable a port (blocks traffic and powers the PHY down)
 speed <n> auto|10|100|1000   Limit what a port negotiates; autonegotiation stays on
+qos on|off                   Four egress queues per port with 802.1p tags trusted, or one queue
+qos <n> <0-7>                Default priority for frames arriving on port <n> without a usable tag
+ratelimit <n> in|out <mbps>|off  Limit what a port receives or sends (see below)
 isolate <n> all|<p,p,...>    Limit which ports frames from port <n> may be forwarded to
 mirror <src> <dst> [rx|tx|both]  Copy port <src>'s traffic to <dst>; `mirror off` to stop
 counters <n>                 MIB counters for a port, cleared on read; `counters clear` zeroes all
@@ -222,6 +225,17 @@ mismatch) and applied before the prompt appears.
 `speed` narrows the autonegotiation advertisement (IEEE registers 4 and 9) to one speed
 rather than disabling autonegotiation, so the partner still negotiates and duplex is
 resolved correctly. The link drops and renegotiates when the setting changes.
+
+`qos on` gives every port four egress queues and trusts the priority field of 802.1Q-tagged
+frames; `qos <n> <p>` sets the priority used for anything else arriving on that port. The
+switch maps priorities 0-1, 2-3, 4-5 and 6-7 to queues 0-3 and services them with its
+default weighted round robin, so high priority traffic is favoured without starving the
+rest. With `qos off` there is a single queue and priorities have no effect.
+
+`ratelimit` uses the switch's port-based limiters. The hardware value is a 7-bit code
+whose meaning scales with link speed, so the command takes the rate it gives on a
+gigabit link: 1-10 Mb/s, or 110-1000 Mb/s in steps of 10. On a 100 Mb/s link the same
+setting limits to the code in Mb/s (so a setting of 500 limits a 100 Mb/s port to 50).
 
 `isolate` is one-way: `isolate 3 1` stops port 3 reaching anything but port 1, while
 port 1 still reaches port 3 unless its own list is narrowed too. It uses the switch's

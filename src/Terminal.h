@@ -12,7 +12,7 @@ class Terminal {
 public:
 	// One console command: its name and the handler that parses its arguments.
 	struct Command {
-		char name[9];
+		char name[10];
 		void (Terminal::*handler)(const char* args);
 	};
 
@@ -47,6 +47,8 @@ public:
 	void handleStatusCommand(const char* args);
 	void handlePortCommand(const char* args);
 	void handleSpeedCommand(const char* args);
+	void handleQosCommand(const char* args);
+	void handleRateLimitCommand(const char* args);
 	void handleIsolateCommand(const char* args);
 	void handleMirrorCommand(const char* args);
 	void handleCountersCommand(const char* args);
@@ -84,6 +86,7 @@ private:
 	void printLinkState(bool linkUp, uint8_t speedCode, bool fullDuplex, bool columns);
 	void printPortList(uint8_t mask);
 	void printSpeedSetting(uint8_t speed, bool padded);
+	void printRateLimit(uint8_t code);
 	void printMirrorSetting();
 	bool verifySwitch();
 	bool verifyPhy(uint8_t phyAddr);
@@ -91,6 +94,7 @@ private:
 	// Hardware side of the configuration commands.
 	void setPortEnabled(uint8_t port, bool enabled);
 	void setPortSpeed(uint8_t port, uint8_t speed);
+	void applyQos(bool enabled);
 	void applyMirror();
 
 	uint16_t parseHexAddress(const char* str, bool& success);

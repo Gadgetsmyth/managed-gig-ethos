@@ -24,6 +24,8 @@ public:
 	void writeRegister16(uint8_t port, uint8_t function, uint8_t registerAddr, uint16_t data);
 
 	// Read-modify-write of the bits in mask.
+	void writeRegisterMasked(
+		uint8_t port, uint8_t function, uint8_t registerAddr, uint8_t data, uint8_t mask);
 	void writeRegister16Masked(
 		uint8_t port, uint8_t function, uint8_t registerAddr, uint16_t data, uint16_t mask);
 
@@ -63,6 +65,21 @@ public:
 	// Port mirroring control (0xN800): a port can be the sniffer that receives copies,
 	// and/or have its received and transmitted frames copied to the sniffer.
 	void setPortMirroring(uint8_t port, bool sniffer, bool mirrorRx, bool mirrorTx);
+
+	// Egress queue split (0xN020 bits 1:0): one queue, or four selected by priority.
+	void setPortFourQueues(uint8_t port, bool fourQueues);
+
+	// 802.1p priority classification (0xN801 bit 2): trust the PCP field of tagged frames.
+	void setPort8021pClassification(uint8_t port, bool enabled);
+
+	// Default priority 0-7 (0xN802 bits 2:0) for frames no other classifier assigns.
+	void setPortDefaultPriority(uint8_t port, uint8_t priority);
+
+	// Port-based ingress/egress rate limits. `code` is a datasheet table 5-3 value:
+	// 0 = line rate, 1-10 = that many Mb/s, 11-100 = code x 10 Mb/s on a gigabit link
+	// (code x 1 Mb/s on a 100 Mb/s link).
+	void setIngressRateLimit(uint8_t port, uint8_t code);
+	void setEgressRateLimit(uint8_t port, uint8_t code);
 
 	// Read one MIB counter through the port's indirect access registers. Counters clear
 	// on read. Returns bits 31:0; bits 35:32 of the byte counters and the overflow flag

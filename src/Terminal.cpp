@@ -15,6 +15,8 @@ static const Terminal::Command COMMANDS[] PROGMEM = {
 	{"status", &Terminal::handleStatusCommand},
 	{"port", &Terminal::handlePortCommand},
 	{"speed", &Terminal::handleSpeedCommand},
+	{"qos", &Terminal::handleQosCommand},
+	{"ratelimit", &Terminal::handleRateLimitCommand},
 	{"isolate", &Terminal::handleIsolateCommand},
 	{"mirror", &Terminal::handleMirrorCommand},
 	{"counters", &Terminal::handleCountersCommand},
@@ -92,8 +94,15 @@ void Terminal::applySettingsAtBoot() {
 		if (settings.data.speed[port - 1] != Phy::SPEED_AUTO)
 			setPortSpeed(port, settings.data.speed[port - 1]);
 		spiController.setPortMembership(port, settings.data.membership[port - 1]);
+		spiController.setPortDefaultPriority(port, settings.data.priority[port - 1]);
+		if (settings.data.ingressLimit[port - 1])
+			spiController.setIngressRateLimit(port, settings.data.ingressLimit[port - 1]);
+		if (settings.data.egressLimit[port - 1])
+			spiController.setEgressRateLimit(port, settings.data.egressLimit[port - 1]);
 	}
 	applyMirror();
+	if (settings.data.qos)
+		applyQos(true);
 }
 
 // A disabled port is blocked in the switch fabric and its PHY is powered down, so the
@@ -111,6 +120,15 @@ void Terminal::setPortSpeed(uint8_t port, uint8_t speed) {
 		mdcController.setSpeed(Board::phyAddressForPort(port), speed);
 	else
 		spiController.setInternalPhySpeed(port, speed);
+}
+
+// QoS on means every port has four egress queues and trusts 802.1p tags. Queues are an
+// egress property, so all ports change together; a single port cannot be "on".
+void Terminal::applyQos(bool enabled) {
+	for (uint8_t port = 1; port <= Board::PORT_COUNT; port++) {
+		spiController.setPortFourQueues(port, enabled);
+		spiController.setPort8021pClassification(port, enabled);
+	}
 }
 
 void Terminal::applyMirror() {
@@ -515,6 +533,82 @@ void Terminal::handleSpeedCommand(const char* args) {
 	Serial.println();
 }
 
+// qos on|off      four egress queues per port and 802.1p tags trusted, or one queue.
+// qos <n> <0-7>   default priority for frames arriving on port <n> without a usable tag.
+void Terminal::handleQosCommand(const char* args) {
+	if (matchWord(args, PSTR("on")) || matchWord(args, PSTR("off"))) {
+		bool enable = matchWord(args, PSTR("on"));
+		settings.data.qos = enable;
+		applyQos(enable);
+		Serial.println(enable ? F("QoS on: 4 queues, 802.1p trusted") : F("QoS off"));
+		return;
+	}
+
+	uint8_t port;
+	if (!parsePort(args, port))
+		return;
+	const char* value = nextArg(args);
+	bool parseSuccess;
+	int priority = parseDecimal(value, parseSuccess);
+	if (!value || priority < 0 || priority > 7) {
+		printError(F("Usage: qos on|off or qos <1-7> <priority 0-7>"));
+		return;
+	}
+
+	settings.data.priority[port - 1] = priority;
+	spiController.setPortDefaultPriority(port, priority);
+	Serial.print(F("Port "));
+	Serial.print(port);
+	Serial.print(F(" priority "));
+	Serial.println(priority);
+}
+
+// ratelimit <n> in|out <mbps>|off  limits what port <n> receives or sends. The switch's
+// limiter is a 7-bit code whose meaning scales with link speed (datasheet table 5-3);
+// the value here is the Mb/s it gives on a gigabit link: 1-10, or 110-1000 in steps
+// of 10. On a 100 Mb/s link the same code limits to code Mb/s.
+void Terminal::handleRateLimitCommand(const char* args) {
+	uint8_t port;
+	if (!parsePort(args, port))
+		return;
+
+	const char* direction = nextArg(args);
+	bool ingress = matchWord(direction, PSTR("in"));
+	if (!ingress && !matchWord(direction, PSTR("out"))) {
+		printError(F("Usage: ratelimit <1-7> in|out <mbps>|off"));
+		return;
+	}
+
+	const char* value = nextArg(direction);
+	uint8_t code = 0;
+	if (!matchWord(value, PSTR("off"))) {
+		bool parseSuccess;
+		int mbps = parseDecimal(value, parseSuccess);
+		if (mbps >= 1 && mbps <= 10)
+			code = mbps;
+		else if (mbps >= 110 && mbps <= 1000 && mbps % 10 == 0)
+			code = mbps / 10;
+		else {
+			printError(F("Rate must be off, 1-10, or 110-1000 in steps of 10 (Mb/s at gigabit)"));
+			return;
+		}
+	}
+
+	if (ingress) {
+		settings.data.ingressLimit[port - 1] = code;
+		spiController.setIngressRateLimit(port, code);
+	} else {
+		settings.data.egressLimit[port - 1] = code;
+		spiController.setEgressRateLimit(port, code);
+	}
+
+	Serial.print(F("Port "));
+	Serial.print(port);
+	Serial.print(ingress ? F(" ingress limit ") : F(" egress limit "));
+	printRateLimit(code);
+	Serial.println();
+}
+
 // Set which ports frames arriving on a port may be forwarded to. The rule is one-way:
 // `isolate 3 1` stops port 3 reaching anything but port 1, while port 1 can still reach
 // port 3 unless its own list is narrowed too.
@@ -647,16 +741,24 @@ void Terminal::handleShowCommand(const char* args) {
 	(void)args;
 	const Settings::Data& data = settings.data;
 
-	Serial.println(F("Port  Admin  Speed  Forwards to"));
+	Serial.println(F("Port  Admin  Speed  Prio  In     Out    Forwards to"));
 	for (uint8_t port = 1; port <= Board::PORT_COUNT; port++) {
+		uint8_t i = port - 1;
 		Serial.print(port);
 		Serial.print(
 			(data.portEnabled & Board::portBit(port)) ? F("     on     ") : F("     off    "));
-		printSpeedSetting(data.speed[port - 1], true);
+		printSpeedSetting(data.speed[i], true);
 		Serial.print(F("  "));
-		printPortList(data.membership[port - 1]);
+		Serial.print(data.priority[i]);
+		Serial.print(F("     "));
+		printRateLimit(data.ingressLimit[i]);
+		Serial.print(' ');
+		printRateLimit(data.egressLimit[i]);
+		Serial.print(' ');
+		printPortList(data.membership[i]);
 		Serial.println();
 	}
+	Serial.println(data.qos ? F("QoS: on (4 queues, 802.1p trusted)") : F("QoS: off"));
 	printMirrorSetting();
 	Serial.println(data.linkLog ? F("Link log: on") : F("Link log: off"));
 	Serial.print(F("RGMII delay: "));
@@ -686,8 +788,15 @@ void Terminal::handleDefaultsCommand(const char* args) {
 		if (previous.speed[port - 1] != settings.data.speed[port - 1])
 			setPortSpeed(port, settings.data.speed[port - 1]);
 		spiController.setPortMembership(port, settings.data.membership[port - 1]);
+		spiController.setPortDefaultPriority(port, settings.data.priority[port - 1]);
+		if (previous.ingressLimit[port - 1])
+			spiController.setIngressRateLimit(port, 0);
+		if (previous.egressLimit[port - 1])
+			spiController.setEgressRateLimit(port, 0);
 	}
 	applyMirror();
+	if (previous.qos)
+		applyQos(false);
 	if (previous.rgmiiDelay != settings.data.rgmiiDelay)
 		for (uint8_t phyAddr : Board::PHY_ADDRESSES)
 			mdcController.setRgmiiDelay(phyAddr, settings.data.rgmiiDelay);
@@ -727,6 +836,8 @@ void Terminal::handleHelpCommand(const char* args) {
 	Serial.println(F("  status                     - Link, speed and duplex for all 7 ports"));
 	Serial.println(F("  port <n> on|off            - Enable or disable a port"));
 	Serial.println(F("  speed <n> auto|10|100|1000 - Limit what a port negotiates"));
+	Serial.println(F("  qos on|off / qos <n> <0-7> - 4 queues + 802.1p; port default priority"));
+	Serial.println(F("  ratelimit <n> in|out <mbps>|off"));
 	Serial.println(F("  isolate <n> all|<p,p,..>   - Limit which ports <n> may forward to"));
 	Serial.println(F("  mirror <src> <dst> [rx|tx|both] / mirror off"));
 	Serial.println(F("  counters <n>|clear         - MIB counters (cleared on read)"));
@@ -821,6 +932,19 @@ void Terminal::printSpeedSetting(uint8_t speed, bool padded) {
 		Serial.print(padded ? F("auto ") : F("auto"));
 		break;
 	}
+}
+
+// Print a rate code as the Mb/s it gives on a gigabit link, padded to six columns.
+void Terminal::printRateLimit(uint8_t code) {
+	if (code == 0) {
+		Serial.print(F("off   "));
+		return;
+	}
+	uint16_t mbps = code <= 10 ? code : code * 10;
+	Serial.print(mbps);
+	Serial.print('M');
+	for (uint8_t pad = mbps >= 1000 ? 5 : mbps >= 100 ? 4 : mbps >= 10 ? 3 : 2; pad < 6; pad++)
+		Serial.print(' ');
 }
 
 void Terminal::printMirrorSetting() {

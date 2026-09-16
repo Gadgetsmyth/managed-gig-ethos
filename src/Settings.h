@@ -14,13 +14,17 @@ public:
 	static constexpr uint8_t MIRROR_TX = 0x02;
 
 	struct Data {
-		uint8_t portEnabled;				   // bit N-1 set = port N forwards traffic
-		uint8_t membership[Board::PORT_COUNT]; // per port: ports it may forward to
-		uint8_t speed[Board::PORT_COUNT];	   // per port: a Phy::Speed value
-		uint8_t mirrorSource;				   // 0 = mirroring off
+		uint8_t portEnabled;					 // bit N-1 set = port N forwards traffic
+		uint8_t membership[Board::PORT_COUNT];	 // per port: ports it may forward to
+		uint8_t speed[Board::PORT_COUNT];		 // per port: a Phy::Speed value
+		uint8_t priority[Board::PORT_COUNT];	 // per port: default 802.1p priority 0-7
+		uint8_t ingressLimit[Board::PORT_COUNT]; // per port: rate code, 0 = no limit
+		uint8_t egressLimit[Board::PORT_COUNT];	 // per port: rate code, 0 = no limit
+		uint8_t mirrorSource;					 // 0 = mirroring off
 		uint8_t mirrorDest;
 		uint8_t mirrorMode;	 // MIRROR_RX and/or MIRROR_TX
 		bool linkLog;		 // print a line when any port changes link state
+		bool qos;			 // four egress queues per port, 802.1p tags trusted
 		uint16_t rgmiiDelay; // VSC8531 register 20E2 for both external PHYs
 	};
 
@@ -40,7 +44,7 @@ public:
 
 private:
 	static constexpr uint16_t MAGIC = 0x4745; // "GE"
-	static constexpr uint8_t LAYOUT_VERSION = 2;
+	static constexpr uint8_t LAYOUT_VERSION = 3;
 	static constexpr int EEPROM_ADDRESS = 0;
 
 	struct Record {
