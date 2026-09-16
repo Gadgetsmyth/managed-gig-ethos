@@ -95,6 +95,7 @@ private:
 	void setPortEnabled(uint8_t port, bool enabled);
 	void setPortSpeed(uint8_t port, uint8_t speed);
 	void applyQos(bool enabled);
+	void applyRgmiiDelay();
 	void applyMirror();
 
 	uint16_t parseHexAddress(const char* str, bool& success);

@@ -91,7 +91,10 @@ void Terminal::applySettingsAtBoot() {
 	for (uint8_t port = 1; port <= Board::PORT_COUNT; port++) {
 		if (!(settings.data.portEnabled & Board::portBit(port)))
 			setPortEnabled(port, false);
-		if (settings.data.speed[port - 1] != Phy::SPEED_AUTO)
+		// Internal PHYs already advertise everything plus pause from the errata sequence;
+		// the external PHYs come out of their init soft reset with the default
+		// advertisement, so they always get theirs written here.
+		if (Board::isExternalPort(port) || settings.data.speed[port - 1] != Phy::SPEED_AUTO)
 			setPortSpeed(port, settings.data.speed[port - 1]);
 		spiController.setPortMembership(port, settings.data.membership[port - 1]);
 		spiController.setPortDefaultPriority(port, settings.data.priority[port - 1]);
@@ -128,6 +131,15 @@ void Terminal::applyQos(bool enabled) {
 	for (uint8_t port = 1; port <= Board::PORT_COUNT; port++) {
 		spiController.setPortFourQueues(port, enabled);
 		spiController.setPort8021pClassification(port, enabled);
+	}
+}
+
+// The soft reset inside setRgmiiDelay wipes the PHY's advertisement, so the port's speed
+// setting (and pause) is written again afterwards.
+void Terminal::applyRgmiiDelay() {
+	for (uint8_t port = Board::FIRST_EXTERNAL_PORT; port <= Board::PORT_COUNT; port++) {
+		mdcController.setRgmiiDelay(Board::phyAddressForPort(port), settings.data.rgmiiDelay);
+		setPortSpeed(port, settings.data.speed[port - 1]);
 	}
 }
 
@@ -729,8 +741,7 @@ void Terminal::handleRgmiiCommand(const char* args) {
 	}
 
 	settings.data.rgmiiDelay = delay;
-	for (uint8_t phyAddr : Board::PHY_ADDRESSES)
-		mdcController.setRgmiiDelay(phyAddr, delay);
+	applyRgmiiDelay();
 
 	Serial.print(F("RGMII delay "));
 	printHexWord(delay);
@@ -798,8 +809,7 @@ void Terminal::handleDefaultsCommand(const char* args) {
 	if (previous.qos)
 		applyQos(false);
 	if (previous.rgmiiDelay != settings.data.rgmiiDelay)
-		for (uint8_t phyAddr : Board::PHY_ADDRESSES)
-			mdcController.setRgmiiDelay(phyAddr, settings.data.rgmiiDelay);
+		applyRgmiiDelay();
 
 	Serial.println(F("Defaults applied (not saved)"));
 }

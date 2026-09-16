@@ -42,7 +42,8 @@ public:
 	void initializeDualPhy(uint8_t phyAddr = 0x00, uint16_t rgmiiDelay = DEFAULT_RGMII_DELAY);
 
 	// Write register 20E2 and soft-reset the PHY so the new delay takes effect. The link
-	// drops and renegotiates.
+	// drops and renegotiates. The reset returns every register to its default, so the
+	// caller must re-apply the advertisement with setSpeed() afterwards.
 	void setRgmiiDelay(uint8_t phyAddr, uint16_t rgmiiDelay);
 
 	// Power the PHY down (link drops, partner sees no link) or back up, which renegotiates.

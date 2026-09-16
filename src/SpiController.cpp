@@ -181,8 +181,13 @@ void SpiController::applySwitchErrata() {
 	// Module 11: collision-based rather than CRS-based back pressure
 	writeRegister(0, 3, 0x31, 0xD0);
 
-	for (uint8_t port = FIRST_PHY_PORT; port <= LAST_PHY_PORT; port++)
+	// Advertise pause alongside every speed, ahead of the restart below so it costs no
+	// extra negotiation. Per-port speed limits from the settings are applied after boot.
+	for (uint8_t port = FIRST_PHY_PORT; port <= LAST_PHY_PORT; port++) {
+		writeRegister16Masked(port, 1, 2 * Phy::REG_ADVERTISE,
+			Phy::advertise10_100(Phy::SPEED_AUTO), Phy::ADVERTISE_10_100_MASK);
 		writeRegister16(port, 1, PHY_CONTROL, ANEG_ENABLE_RESTART);
+	}
 }
 
 uint8_t SpiController::readPortStatus(uint8_t port) {
