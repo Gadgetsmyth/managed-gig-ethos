@@ -114,9 +114,13 @@ void Terminal::applyMirror() {
 }
 
 void Terminal::printLinkEvent(uint8_t port, bool linkUp, uint8_t speedCode, bool fullDuplex) {
-	// Return to column 0 and erase the prompt line, so the event replaces it rather than
-	// leaving an empty prompt above itself. The prompt and any typed text are redrawn after.
-	Serial.print(F("\r\x1b[K"));
+	// Blank out the prompt and any typed text with spaces, then return to column 0 so
+	// the event replaces the prompt line. Plain characters only: the PlatformIO monitor
+	// prints ANSI escape sequences literally. The prompt and typed text are redrawn after.
+	Serial.print('\r');
+	for (uint8_t i = 0; i < inputIndex + 2; i++)
+		Serial.print(' ');
+	Serial.print('\r');
 	Serial.print(F("link: port "));
 	Serial.print(port);
 	Serial.print(' ');
