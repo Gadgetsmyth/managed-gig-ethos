@@ -96,7 +96,7 @@ avrdude -c usbasp -p m328p -U lfuse:r:-:h -U hfuse:r:-:h -U efuse:r:-:h -U lock:
 |---|---|---|
 | lfuse | 0xF7 | Full-swing crystal oscillator, no clock divide |
 | hfuse | 0xD7 | SPI enabled, EEPROM preserved on erase, 512-byte boot section, reset vector to application (urboot is a vector bootloader) |
-| efuse | 0xFF | Brown-out detection disabled |
+| efuse | 0xFE | Brown-out detection at 1.8 V (the ATmega runs at 2.5 V; 2.7 V holds it in reset) |
 | lock | 0xFF | Unlocked |
 
 ### Step 3: Fuses and bootloader (ISP, pins held)
@@ -106,7 +106,7 @@ leaves the lock bits open.
 
 ```
 avrdude -c usbasp -p m328p \
-  -U lfuse:w:0xf7:m -U hfuse:w:0xd7:m -U efuse:w:0xff:m \
+  -U lfuse:w:0xf7:m -U hfuse:w:0xd7:m -U efuse:w:0xfe:m \
   -U flash:w:$HOME/.platformio/packages/framework-arduino-avr-minicore/bootloaders/urboot/atmega328p/watchdog_1_s/autobaud/uart0_rxd0_txd1/no-led/urboot_atmega328p_pr_ee_ce.hex:i \
   -U lock:w:0xff:m
 ```

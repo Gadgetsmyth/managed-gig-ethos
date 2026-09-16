@@ -3,7 +3,9 @@
 
 #include <Arduino.h>
 
-// How the ATmega328P is wired to the switch and PHYs on this board.
+// How the ATmega328P is wired to the switch and PHYs on this board. The ATmega runs from
+// a 2.5 V rail at 8 MHz, which is inside its rated range with little margin; the brown-out
+// threshold must stay at 1.8 V, since 2.7 V holds it in reset.
 namespace Board {
 
 // Active-low reset shared by both external PHYs.
