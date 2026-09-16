@@ -10,3 +10,6 @@ compile_commands.json
 
 # Per-machine PlatformIO overrides (upload_port etc.)
 platformio.local*.ini
+
+# Factory images built by scripts/make_factory_hex.py (published as GitHub release assets)
+release/
