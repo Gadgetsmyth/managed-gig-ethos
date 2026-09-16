@@ -8,7 +8,7 @@ decisions are in `docs/HANDOFF.md`.
 | Version | Contents | State |
 |---|---|---|
 | v0.1 | Reliability baseline: flash strings, watchdog with reset-cause reporting, chip ID checks at boot, `status`, `version`, KSZ9897R errata, MAC-follows-PHY speed tracking on ports 6-7 | Merged (PR #3), not yet tagged |
-| v0.2 | Managed-switch commands: `port`, `speed`, `isolate`, `mirror`, `counters`, `log`, `rgmii`, plus `show` / `save` / `defaults` with EEPROM persistence | Bench-tested 2026-09-15, all steps pass except `mirror`, which needs a capture host. `speed` added after the test run; see step 11 |
+| v0.2 | Managed-switch commands: `port`, `speed`, `isolate`, `mirror`, `counters`, `log`, `rgmii`, plus `show` / `save` / `defaults` with EEPROM persistence | Bench-tested 2026-09-15, all steps pass except `mirror`, which needs a capture host |
 | v0.3 | Below | Planned |
 
 Footprint after v0.2: 20.8 KB flash of 32 KB (urboot takes the top 0.5 KB), 306 bytes
@@ -20,7 +20,8 @@ Run after flashing, in this order. Each step is independent of the ones after it
 Results from 2026-09-15 (build 4bfe7b4, PC on port 6, router on port 1): steps 1-4 and
 6-10 pass. Step 5 not run (no capture host on the bench). Step 8 ran 2.7 GB through port 6
 in both directions at 0x0044 with zero CRC, symbol, alignment and drop counts, matching
-0x0042; 0x0044 is now the compiled default.
+0x0042; 0x0044 is now the compiled default. Step 11 (`speed`) passed on both the external
+and internal PHY paths: 94.0/94.4 Mbit/s at forced 100 with zero collisions or errors.
 
 1. Boot. Expect `Config: no saved settings, using defaults` the first time, then the chip
    checks, then one `link: port N up ...` line per connected port.

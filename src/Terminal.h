@@ -83,7 +83,7 @@ private:
 	void printHexWord(uint16_t value);
 	void printLinkState(bool linkUp, uint8_t speedCode, bool fullDuplex, bool columns);
 	void printPortList(uint8_t mask);
-	void printSpeedSetting(uint8_t speed);
+	void printSpeedSetting(uint8_t speed, bool padded);
 	void printMirrorSetting();
 	bool verifySwitch();
 	bool verifyPhy(uint8_t phyAddr);

@@ -511,7 +511,7 @@ void Terminal::handleSpeedCommand(const char* args) {
 	Serial.print(F("Port "));
 	Serial.print(port);
 	Serial.print(F(" speed "));
-	printSpeedSetting(speed);
+	printSpeedSetting(speed, false);
 	Serial.println();
 }
 
@@ -652,7 +652,7 @@ void Terminal::handleShowCommand(const char* args) {
 		Serial.print(port);
 		Serial.print(
 			(data.portEnabled & Board::portBit(port)) ? F("     on     ") : F("     off    "));
-		printSpeedSetting(data.speed[port - 1]);
+		printSpeedSetting(data.speed[port - 1], true);
 		Serial.print(F("  "));
 		printPortList(data.membership[port - 1]);
 		Serial.println();
@@ -805,20 +805,20 @@ void Terminal::printPortList(uint8_t mask) {
 	}
 }
 
-// Print a Phy::Speed as "auto", "10", "100" or "1000", padded to five columns.
-void Terminal::printSpeedSetting(uint8_t speed) {
+// Print a Phy::Speed as "auto", "10", "100" or "1000", padded to five columns for `show`.
+void Terminal::printSpeedSetting(uint8_t speed, bool padded) {
 	switch (speed) {
 	case Phy::SPEED_10:
-		Serial.print(F("10   "));
+		Serial.print(padded ? F("10   ") : F("10"));
 		break;
 	case Phy::SPEED_100:
-		Serial.print(F("100  "));
+		Serial.print(padded ? F("100  ") : F("100"));
 		break;
 	case Phy::SPEED_1000:
-		Serial.print(F("1000 "));
+		Serial.print(padded ? F("1000 ") : F("1000"));
 		break;
 	default:
-		Serial.print(F("auto "));
+		Serial.print(padded ? F("auto ") : F("auto"));
 		break;
 	}
 }
