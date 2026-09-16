@@ -237,8 +237,10 @@ whose meaning scales with link speed, so the command takes the rate it gives on 
 gigabit link: 1-10 Mb/s, or 110-1000 Mb/s in steps of 10. On a 100 Mb/s link the same
 setting limits to the code in Mb/s (so a setting of 500 limits a 100 Mb/s port to 50).
 Egress limits shape traffic by queueing it. Ingress limits throttle the sender with pause
-frames, which needs the attached device to honour flow control (nearly all do); a sender
-that ignores pause is limited by dropping instead, which costs TCP much of its throughput.
+frames, so the attached device must have flow control enabled: every PHY advertises pause,
+but a NIC whose driver has pause switched off (`ethtool -a` showing `RX: off`) ignores the
+frames and is not limited at all. `sudo ethtool -A <iface> rx on tx on` fixes that on
+Linux. With pause honoured, a TCP flow runs at the configured rate with no retransmits.
 
 `isolate` is one-way: `isolate 3 1` stops port 3 reaching anything but port 1, while
 port 1 still reaches port 3 unless its own list is narrowed too. It uses the switch's

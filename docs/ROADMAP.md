@@ -22,6 +22,10 @@ Results from 2026-09-15 (build 4bfe7b4, PC on port 6, router on port 1): steps 1
 in both directions at 0x0044 with zero CRC, symbol, alignment and drop counts, matching
 0x0042; 0x0044 is now the compiled default. Step 11 (`speed`) passed on both the external
 and internal PHY paths: 94.0/94.4 Mbit/s at forced 100 with zero collisions or errors.
+Step 12: egress limit 110 gave 105 Mbit/s; ingress limit 110 gave 110 Mbit/s with zero
+retransmits once the Ubuntu NIC (e1000e, pause off by default on that box) had pause
+enabled; before that it ignored the switch's pause frames and ran at 935. `qos on` and
+`qos 6 7` displayed correctly and persisted.
 
 1. Boot. Expect `Config: no saved settings, using defaults` the first time, then the chip
    checks, then one `link: port N up ...` line per connected port.
@@ -48,8 +52,10 @@ and internal PHY paths: 94.0/94.4 Mbit/s at forced 100 with zero collisions or e
     and iperf around 94 Mbit/s. `speed 6 auto` returns it to 1000. Repeat `speed 1 100`
     on the router port to exercise the internal-PHY path.
 12. `ratelimit 6 out 110` then iperf from the Ubuntu box toward the PC (reverse mode):
-    expect about 105 Mbit/s. `ratelimit 6 in 110` and a run the other way: expect the same
-    (the limiter throttles with pause frames; its discards do not show in RxDropped).
+    expect about 105 Mbit/s. `ratelimit 6 in 110` and a run the other way: expect about
+    110 Mbit/s with no retransmits, `counters 6` showing TxPause in the hundreds, and the
+    NIC's `ethtool -S` XOFF counter climbing. If the NIC shows `RX: off` in `ethtool -a`
+    it ignores the pause frames and is not limited; `ethtool -A <iface> rx on tx on` first.
     `ratelimit 6 in off` / `out off` restores 941 Mbit/s. `qos on`, `qos 6 7`, `show`: expect the QoS line and Prio column, and
     iperf unchanged (a single flow cannot show queueing). `qos off`.
 
