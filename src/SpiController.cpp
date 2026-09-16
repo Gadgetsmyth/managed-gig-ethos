@@ -274,11 +274,15 @@ void SpiController::setPortDefaultPriority(uint8_t port, uint8_t priority) {
 
 // Ingress limiting is switched to port-based (0xN403 bit 6) so only the priority 0 rate
 // register (0xN410) applies; the switch latches the new rate when the priority 7 register
-// (0xN417) is written.
+// (0xN417) is written. Bit 4 makes the limiter assert pause frames rather than drop:
+// a dropping limiter drove a TCP flow down to a third of the configured rate on the
+// bench, while pause holds it at the limit.
 void SpiController::setIngressRateLimit(uint8_t port, uint8_t code) {
 	static constexpr uint8_t INGRESS_PORT_BASED = 0x40;
+	static constexpr uint8_t INGRESS_FLOW_CONTROL = 0x10;
 
-	writeRegisterMasked(port, 4, 0x03, INGRESS_PORT_BASED, INGRESS_PORT_BASED);
+	writeRegisterMasked(port, 4, 0x03, INGRESS_PORT_BASED | INGRESS_FLOW_CONTROL,
+		INGRESS_PORT_BASED | INGRESS_FLOW_CONTROL);
 	writeRegister(port, 4, 0x10, code);
 	writeRegister(port, 4, 0x17, 0x00);
 }
