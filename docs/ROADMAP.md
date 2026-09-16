@@ -51,14 +51,15 @@ its own, per the one-step-at-a-time working style.
    autonegotiation, so the partner still negotiates and duplex stays correct. Internal
    PHYs go through SPI at `0xN108`/`0xN112`; the VSC8531s go over MDIO. Persist per port
    in `Settings` (one byte per port). About 1 KB.
-3. **`storm on|off`.** Broadcast storm protection: global rate in `0x0334`, enable via
-   `0x0332` bit 0, per-port enable in the port MAC control register `0xN400` bit 0... verify
-   the per-port bit in the datasheet before writing it. Small, but confirm on the bench that
-   a broadcast flood is actually rate-limited.
-4. **`cable <n>`.** LinkMD cable diagnostics on ports 1-5 through `0xN124` and
-   `0xN112`, per datasheet section 4.2.x: reports open, short, or OK with an approximate
-   distance. Sales-friendly feature. Needs the manual master/slave setup step and a link
-   drop during the test.
+3. **`storm on|off`.** Broadcast storm protection: per-port enable is `0xN400` bit 1
+   (Port MAC Control 0), the global rate is the 11-bit field split across `0x0332` bits 2:0
+   and `0x0334` (default 1% of line rate). Small, but confirm on the bench that a
+   broadcast flood is actually rate-limited.
+4. **`cable <n>`.** LinkMD cable diagnostics on ports 1-5, datasheet section 4.1.9 and
+   the PHY LinkMD register `0xN124`: disable autonegotiation, force master/slave via
+   `0xN112`, start the test with bit 15 of `0xN124`, read open/short and distance per
+   pair, then restore autonegotiation. Sales-friendly feature; the link drops during the
+   test.
 5. **`OK` / `ERR <reason>` response prefixes** on every command, for a factory test
    fixture that drives the console from a script. Also change `read` to refuse a count that
    would cross a register block boundary (handoff known issue 4).
