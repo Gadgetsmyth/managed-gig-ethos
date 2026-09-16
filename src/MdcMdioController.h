@@ -48,6 +48,10 @@ public:
 	// Power the PHY down (link drops, partner sees no link) or back up, which renegotiates.
 	void setPowerDown(uint8_t phyAddr, bool down);
 
+	// Limit what the PHY advertises to one Phy::Speed (or everything for SPEED_AUTO) and
+	// restart autonegotiation.
+	void setSpeed(uint8_t phyAddr, uint8_t speed);
+
 private:
 	const int mdcPin;
 	const int mdioPin;

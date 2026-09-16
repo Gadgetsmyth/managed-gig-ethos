@@ -1,4 +1,5 @@
 #include "MdcMdioController.h"
+#include "Phy.h"
 
 // Half-period of the bit-banged MDC clock, in microseconds.
 static constexpr uint8_t DELAY_US = 10;
@@ -158,12 +159,20 @@ void MdcMdioController::setRgmiiDelay(uint8_t phyAddr, uint16_t rgmiiDelay) {
 	writeRegister(phyAddr, 0x00, 0x9040);
 }
 
-// IEEE control register 0 bit 11. Leaving power-down restarts autonegotiation by itself;
-// also setting the restart bit made the link come up and drop once more on the bench.
+// Leaving power-down restarts autonegotiation by itself; also setting the restart bit
+// made the link come up and drop once more on the bench.
 void MdcMdioController::setPowerDown(uint8_t phyAddr, bool down) {
-	static constexpr uint16_t CONTROL_POWER_DOWN = 0x0800;
+	writeRegisterMasked(
+		phyAddr, Phy::REG_CONTROL, down ? Phy::CONTROL_POWER_DOWN : 0, Phy::CONTROL_POWER_DOWN);
+}
 
-	writeRegisterMasked(phyAddr, 0x00, down ? CONTROL_POWER_DOWN : 0, CONTROL_POWER_DOWN);
+void MdcMdioController::setSpeed(uint8_t phyAddr, uint8_t speed) {
+	writeRegisterMasked(
+		phyAddr, Phy::REG_ADVERTISE, Phy::advertise10_100(speed), Phy::ADVERTISE_10_100_MASK);
+	writeRegisterMasked(
+		phyAddr, Phy::REG_1000T_CONTROL, Phy::advertise1000(speed), Phy::ADVERTISE_1000_MASK);
+	writeRegisterMasked(
+		phyAddr, Phy::REG_CONTROL, Phy::CONTROL_RESTART_ANEG, Phy::CONTROL_RESTART_ANEG);
 }
 
 uint32_t MdcMdioController::readPhyId(uint8_t phyAddr) {

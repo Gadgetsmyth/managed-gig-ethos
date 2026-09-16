@@ -23,6 +23,10 @@ public:
 	uint16_t readRegister16(uint8_t port, uint8_t function, uint8_t registerAddr);
 	void writeRegister16(uint8_t port, uint8_t function, uint8_t registerAddr, uint16_t data);
 
+	// Read-modify-write of the bits in mask.
+	void writeRegister16Masked(
+		uint8_t port, uint8_t function, uint8_t registerAddr, uint16_t data, uint16_t mask);
+
 	// Burst read/write of a big-endian 32-bit register starting at registerAddr.
 	uint32_t readRegister32(uint8_t port, uint8_t function, uint8_t registerAddr);
 	void writeRegister32(uint8_t port, uint8_t function, uint8_t registerAddr, uint32_t data);
@@ -43,6 +47,10 @@ public:
 
 	// Power an internal PHY (ports 1-5) down or back up, which renegotiates the link.
 	void setInternalPhyPowerDown(uint8_t port, bool down);
+
+	// Limit what an internal PHY advertises to one Phy::Speed (or everything for
+	// SPEED_AUTO) and restart autonegotiation.
+	void setInternalPhySpeed(uint8_t port, uint8_t speed);
 
 	// Port MSTP state (0xNB04): let the port forward traffic and learn addresses, or
 	// block both so a disabled port is silent even if its link comes up.

@@ -1,6 +1,7 @@
 #include "Settings.h"
 #include <EEPROM.h>
 #include "MdcMdioController.h"
+#include "Phy.h"
 
 Settings::Settings() {
 	setDefaults();
@@ -8,8 +9,10 @@ Settings::Settings() {
 
 void Settings::setDefaults() {
 	data.portEnabled = Board::ALL_PORTS_MASK;
-	for (uint8_t i = 0; i < Board::PORT_COUNT; i++)
+	for (uint8_t i = 0; i < Board::PORT_COUNT; i++) {
 		data.membership[i] = Board::ALL_PORTS_MASK;
+		data.speed[i] = Phy::SPEED_AUTO;
+	}
 	data.mirrorSource = 0;
 	data.mirrorDest = 0;
 	data.mirrorMode = MIRROR_RX | MIRROR_TX;

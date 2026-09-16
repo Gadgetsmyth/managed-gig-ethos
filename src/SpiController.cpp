@@ -1,5 +1,6 @@
 #include "SpiController.h"
 #include "Board.h"
+#include "Phy.h"
 
 // SPI command bytes: the top 3 bits select the operation, the low 5 bits are don't-care.
 static constexpr uint8_t SPI_WRITE_COMMAND = 0x40; // 010xxxxx
@@ -195,15 +196,28 @@ bool SpiController::readInternalPhyLink(uint8_t port) {
 	return readRegister16(port, 1, 0x02) & _BV(2);
 }
 
-// IEEE control is at 0xN100; bit 11 powers the PHY down. Leaving power-down restarts
+// IEEE registers sit at 0xN100 + 2 * register. Leaving power-down restarts
 // autonegotiation on its own.
 void SpiController::setInternalPhyPowerDown(uint8_t port, bool down) {
-	static constexpr uint16_t CONTROL_POWER_DOWN = 0x0800;
-
-	uint16_t control = readRegister16(port, 1, 0x00) & ~CONTROL_POWER_DOWN;
+	uint16_t control = readRegister16(port, 1, 2 * Phy::REG_CONTROL) & ~Phy::CONTROL_POWER_DOWN;
 	if (down)
-		control |= CONTROL_POWER_DOWN;
-	writeRegister16(port, 1, 0x00, control);
+		control |= Phy::CONTROL_POWER_DOWN;
+	writeRegister16(port, 1, 2 * Phy::REG_CONTROL, control);
+}
+
+void SpiController::setInternalPhySpeed(uint8_t port, uint8_t speed) {
+	writeRegister16Masked(
+		port, 1, 2 * Phy::REG_ADVERTISE, Phy::advertise10_100(speed), Phy::ADVERTISE_10_100_MASK);
+	writeRegister16Masked(
+		port, 1, 2 * Phy::REG_1000T_CONTROL, Phy::advertise1000(speed), Phy::ADVERTISE_1000_MASK);
+	writeRegister16Masked(
+		port, 1, 2 * Phy::REG_CONTROL, Phy::CONTROL_RESTART_ANEG, Phy::CONTROL_RESTART_ANEG);
+}
+
+void SpiController::writeRegister16Masked(
+	uint8_t port, uint8_t function, uint8_t registerAddr, uint16_t data, uint16_t mask) {
+	uint16_t current = readRegister16(port, function, registerAddr);
+	writeRegister16(port, function, registerAddr, (current & ~mask) | (data & mask));
 }
 
 // 0xNB04 bit 2 transmit enable, bit 1 receive enable, bit 0 learning disable. The MSTP

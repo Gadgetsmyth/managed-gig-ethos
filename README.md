@@ -183,6 +183,7 @@ Switch management:
 ```
 status                       Link, speed and duplex for all 7 ports ("off" if disabled)
 port <n> on|off              Enable or disable a port (blocks traffic and powers the PHY down)
+speed <n> auto|10|100|1000   Limit what a port negotiates; autonegotiation stays on
 isolate <n> all|<p,p,...>    Limit which ports frames from port <n> may be forwarded to
 mirror <src> <dst> [rx|tx|both]  Copy port <src>'s traffic to <dst>; `mirror off` to stop
 counters <n>                 MIB counters for a port, cleared on read; `counters clear` zeroes all
@@ -217,6 +218,10 @@ Every management command takes effect immediately and changes the running config
 Nothing is written to EEPROM until `save`; `show` says whether the two differ. At boot the
 stored configuration is loaded (magic, layout version and CRC-8 checked, defaults on any
 mismatch) and applied before the prompt appears.
+
+`speed` narrows the autonegotiation advertisement (IEEE registers 4 and 9) to one speed
+rather than disabling autonegotiation, so the partner still negotiates and duplex is
+resolved correctly. The link drops and renegotiates when the setting changes.
 
 `isolate` is one-way: `isolate 3 1` stops port 3 reaching anything but port 1, while
 port 1 still reaches port 3 unless its own list is narrowed too. It uses the switch's

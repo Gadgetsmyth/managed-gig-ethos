@@ -46,6 +46,7 @@ public:
 	void handleScanMdcCommand(const char* args);
 	void handleStatusCommand(const char* args);
 	void handlePortCommand(const char* args);
+	void handleSpeedCommand(const char* args);
 	void handleIsolateCommand(const char* args);
 	void handleMirrorCommand(const char* args);
 	void handleCountersCommand(const char* args);
@@ -82,12 +83,14 @@ private:
 	void printHexWord(uint16_t value);
 	void printLinkState(bool linkUp, uint8_t speedCode, bool fullDuplex, bool columns);
 	void printPortList(uint8_t mask);
+	void printSpeedSetting(uint8_t speed);
 	void printMirrorSetting();
 	bool verifySwitch();
 	bool verifyPhy(uint8_t phyAddr);
 
 	// Hardware side of the configuration commands.
 	void setPortEnabled(uint8_t port, bool enabled);
+	void setPortSpeed(uint8_t port, uint8_t speed);
 	void applyMirror();
 
 	uint16_t parseHexAddress(const char* str, bool& success);

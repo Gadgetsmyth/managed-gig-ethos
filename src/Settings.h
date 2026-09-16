@@ -16,6 +16,7 @@ public:
 	struct Data {
 		uint8_t portEnabled;				   // bit N-1 set = port N forwards traffic
 		uint8_t membership[Board::PORT_COUNT]; // per port: ports it may forward to
+		uint8_t speed[Board::PORT_COUNT];	   // per port: a Phy::Speed value
 		uint8_t mirrorSource;				   // 0 = mirroring off
 		uint8_t mirrorDest;
 		uint8_t mirrorMode;	 // MIRROR_RX and/or MIRROR_TX
@@ -39,7 +40,7 @@ public:
 
 private:
 	static constexpr uint16_t MAGIC = 0x4745; // "GE"
-	static constexpr uint8_t LAYOUT_VERSION = 1;
+	static constexpr uint8_t LAYOUT_VERSION = 2;
 	static constexpr int EEPROM_ADDRESS = 0;
 
 	struct Record {

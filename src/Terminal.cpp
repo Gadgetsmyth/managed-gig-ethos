@@ -1,5 +1,6 @@
 #include "Terminal.h"
 #include "Board.h"
+#include "Phy.h"
 #include "Watchdog.h"
 
 // Set from `git describe` by scripts/git_version.py; fallback for other build setups.
@@ -13,6 +14,7 @@ constexpr uint8_t Terminal::MAX_COMMAND_LENGTH;
 static const Terminal::Command COMMANDS[] PROGMEM = {
 	{"status", &Terminal::handleStatusCommand},
 	{"port", &Terminal::handlePortCommand},
+	{"speed", &Terminal::handleSpeedCommand},
 	{"isolate", &Terminal::handleIsolateCommand},
 	{"mirror", &Terminal::handleMirrorCommand},
 	{"counters", &Terminal::handleCountersCommand},
@@ -87,6 +89,8 @@ void Terminal::applySettingsAtBoot() {
 	for (uint8_t port = 1; port <= Board::PORT_COUNT; port++) {
 		if (!(settings.data.portEnabled & Board::portBit(port)))
 			setPortEnabled(port, false);
+		if (settings.data.speed[port - 1] != Phy::SPEED_AUTO)
+			setPortSpeed(port, settings.data.speed[port - 1]);
 		spiController.setPortMembership(port, settings.data.membership[port - 1]);
 	}
 	applyMirror();
@@ -100,6 +104,13 @@ void Terminal::setPortEnabled(uint8_t port, bool enabled) {
 		mdcController.setPowerDown(Board::phyAddressForPort(port), !enabled);
 	else
 		spiController.setInternalPhyPowerDown(port, !enabled);
+}
+
+void Terminal::setPortSpeed(uint8_t port, uint8_t speed) {
+	if (Board::isExternalPort(port))
+		mdcController.setSpeed(Board::phyAddressForPort(port), speed);
+	else
+		spiController.setInternalPhySpeed(port, speed);
 }
 
 void Terminal::applyMirror() {
@@ -472,6 +483,38 @@ void Terminal::handlePortCommand(const char* args) {
 	Serial.println(enable ? F(" on") : F(" off"));
 }
 
+// speed <n> auto|10|100|1000  narrows what the port advertises so the partner can only
+// negotiate that speed. Autonegotiation stays on, so duplex is still resolved properly.
+void Terminal::handleSpeedCommand(const char* args) {
+	uint8_t port;
+	if (!parsePort(args, port))
+		return;
+
+	const char* value = nextArg(args);
+	uint8_t speed;
+	if (matchWord(value, PSTR("auto")))
+		speed = Phy::SPEED_AUTO;
+	else if (matchWord(value, PSTR("10")))
+		speed = Phy::SPEED_10;
+	else if (matchWord(value, PSTR("100")))
+		speed = Phy::SPEED_100;
+	else if (matchWord(value, PSTR("1000")))
+		speed = Phy::SPEED_1000;
+	else {
+		printError(F("Usage: speed <1-7> auto|10|100|1000"));
+		return;
+	}
+
+	settings.data.speed[port - 1] = speed;
+	setPortSpeed(port, speed);
+
+	Serial.print(F("Port "));
+	Serial.print(port);
+	Serial.print(F(" speed "));
+	printSpeedSetting(speed);
+	Serial.println();
+}
+
 // Set which ports frames arriving on a port may be forwarded to. The rule is one-way:
 // `isolate 3 1` stops port 3 reaching anything but port 1, while port 1 can still reach
 // port 3 unless its own list is narrowed too.
@@ -604,11 +647,13 @@ void Terminal::handleShowCommand(const char* args) {
 	(void)args;
 	const Settings::Data& data = settings.data;
 
-	Serial.println(F("Port  Admin  Forwards to"));
+	Serial.println(F("Port  Admin  Speed  Forwards to"));
 	for (uint8_t port = 1; port <= Board::PORT_COUNT; port++) {
 		Serial.print(port);
 		Serial.print(
 			(data.portEnabled & Board::portBit(port)) ? F("     on     ") : F("     off    "));
+		printSpeedSetting(data.speed[port - 1]);
+		Serial.print(F("  "));
 		printPortList(data.membership[port - 1]);
 		Serial.println();
 	}
@@ -638,6 +683,8 @@ void Terminal::handleDefaultsCommand(const char* args) {
 		uint8_t bit = Board::portBit(port);
 		if ((previous.portEnabled ^ settings.data.portEnabled) & bit)
 			setPortEnabled(port, settings.data.portEnabled & bit);
+		if (previous.speed[port - 1] != settings.data.speed[port - 1])
+			setPortSpeed(port, settings.data.speed[port - 1]);
 		spiController.setPortMembership(port, settings.data.membership[port - 1]);
 	}
 	applyMirror();
@@ -679,6 +726,7 @@ void Terminal::handleHelpCommand(const char* args) {
 	Serial.println(F("Switch:"));
 	Serial.println(F("  status                     - Link, speed and duplex for all 7 ports"));
 	Serial.println(F("  port <n> on|off            - Enable or disable a port"));
+	Serial.println(F("  speed <n> auto|10|100|1000 - Limit what a port negotiates"));
 	Serial.println(F("  isolate <n> all|<p,p,..>   - Limit which ports <n> may forward to"));
 	Serial.println(F("  mirror <src> <dst> [rx|tx|both] / mirror off"));
 	Serial.println(F("  counters <n>|clear         - MIB counters (cleared on read)"));
@@ -754,6 +802,24 @@ void Terminal::printPortList(uint8_t mask) {
 			Serial.print(',');
 		Serial.print(port);
 		first = false;
+	}
+}
+
+// Print a Phy::Speed as "auto", "10", "100" or "1000", padded to five columns.
+void Terminal::printSpeedSetting(uint8_t speed) {
+	switch (speed) {
+	case Phy::SPEED_10:
+		Serial.print(F("10   "));
+		break;
+	case Phy::SPEED_100:
+		Serial.print(F("100  "));
+		break;
+	case Phy::SPEED_1000:
+		Serial.print(F("1000 "));
+		break;
+	default:
+		Serial.print(F("auto "));
+		break;
 	}
 }
 
