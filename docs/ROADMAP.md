@@ -1,7 +1,7 @@
 # Roadmap
 
-Last updated 2026-09-15. The console command reference is in `README.md`; bench setup and
-decisions are in `docs/HANDOFF.md`.
+Last updated 2026-09-15. The console command reference is in `README.md`, the factory
+programming procedure in `docs/MANUFACTURING.md`.
 
 ## Where the product stands
 
@@ -13,6 +13,31 @@ decisions are in `docs/HANDOFF.md`.
 
 Footprint after v0.2: 22.9 KB flash of 32 KB (urboot takes the top 0.5 KB), 328 bytes
 static RAM of 2 KB. About 9 KB of flash remains for v0.3.
+
+## Bench setup
+
+| Item | Detail |
+|---|---|
+| Switch | KSZ9897R rev 0 |
+| PHYs | 2x VSC8531XMW-05 rev C, MDIO 0x00 (port 6) and 0x10 (port 7) |
+| ATmega | 2.5 V rail, 8 MHz crystal. Brown-out must be 1.8 V; 2.7 V holds it in reset |
+| Port 1 | Uplink to the LAN router |
+| Port 6 | Ubuntu box `192.168.1.141` (eno1, e1000e), ssh user `sitestream`, runs `iperf3 -s` |
+| Serial | FTDI FT232R, pinned in git-ignored `platformio.local.ini` by its by-id path |
+| ISP | USBasp clone on pogo pins, jumper on 3.3 V. Old firmware: `-B` is ignored, "cannot set sck period" is harmless |
+| Host | WSL2 on Windows, USB via `usbipd.exe attach --wsl --busid <n>` (FTDI 4-2, USBasp 4-3). WSL is NAT'd: run the iperf3 client from WSL, server on the Ubuntu box |
+
+Bench quirks: a wedged FTDI hangs an upload at "Auto-detected" or goes silent; a usbipd
+detach/attach is not enough, unplug the cable. Replugging one adapter can drop the other
+off WSL. The Ubuntu NIC ignores pause frames unless `ethtool -A eno1 rx on tx on` has been
+run since its last boot, which the ingress rate limiter needs.
+
+Design decisions with their reasons live in the commit messages and code comments; the
+notable ones are: all console strings in flash (RAM was 112 bytes from the stack);
+watchdog in interrupt-then-reset mode with a `.noinit` marker because urboot exits through
+its own watchdog; PHY trims aligned to Microchip's VSC8531 sequence; register 23 written
+masked so bit 13 stays clear; pause advertised on every PHY; no-led urboot because PB5 is
+the switch's SPI clock.
 
 ## v0.2 bench test plan
 
@@ -88,10 +113,13 @@ its own, per the one-step-at-a-time working style.
    parser and `Settings` CRC/round-trip, plus a GitHub Actions workflow that builds both
    environments and runs `clang-format --dry-run`.
 8. **Uptime and last reset cause in `status`.** Cheap, useful in the field.
-9. **QoS extras.** DSCP classification (`0xN801` bit 1 plus the global DSCP map), strict
+9. **Tidy-ups.** `initializeDualPhy` is a per-PHY init and its SMI broadcast writes
+   (register 22 bit 0) are leftovers from a dual-PHY board; rename and drop them. Lock bits
+   for the bootloader section once the field-update story is settled.
+10. **QoS extras.** DSCP classification (`0xN801` bit 1 plus the global DSCP map), strict
    priority scheduling as an option (`0xN914`, indexed per queue), and queue-based rate
    limits. The v0.2 `qos` command covers port priority and 802.1p only.
-10. **Tagged 802.1Q VLANs.** Per-port PVID, tagged/untagged membership through the VLAN
+11. **Tagged 802.1Q VLANs.** Per-port PVID, tagged/untagged membership through the VLAN
     table (`0x0400` block indirect access) and ingress filtering. The largest v0.3 item and
     the one most likely to need the remaining flash budget; scope it last.
 
