@@ -1,4 +1,5 @@
 #include "SpiController.h"
+#include "Board.h"
 
 // SPI command bytes: the top 3 bits select the operation, the low 5 bits are don't-care.
 static constexpr uint8_t SPI_WRITE_COMMAND = 0x40; // 010xxxxx
@@ -90,6 +91,25 @@ void SpiController::writeRegister16(
 	endTransfer();
 }
 
+uint32_t SpiController::readRegister32(uint8_t port, uint8_t function, uint8_t registerAddr) {
+	startTransfer(SPI_READ_COMMAND, constructAddress(port, function, registerAddr));
+	uint32_t data = 0;
+	for (uint8_t i = 0; i < 4; i++)
+		data = (data << 8) | SPI.transfer(0x00);
+	endTransfer();
+	return data;
+}
+
+void SpiController::writeRegister32(
+	uint8_t port, uint8_t function, uint8_t registerAddr, uint32_t data) {
+	startTransfer(SPI_WRITE_COMMAND, constructAddress(port, function, registerAddr));
+	SPI.transfer(data >> 24);
+	SPI.transfer(data >> 16);
+	SPI.transfer(data >> 8);
+	SPI.transfer(data);
+	endTransfer();
+}
+
 // The internal PHYs expose IEEE registers 13 (MMD setup) and 14 (MMD data) at
 // 0xN11A and 0xN11C. Select the device with op 00, load the register address, then
 // switch to data mode (op 01, no post-increment) and write the value.
@@ -173,4 +193,74 @@ bool SpiController::readInternalPhyLink(uint8_t port) {
 	// first read reports history and the second the current state.
 	readRegister16(port, 1, 0x02);
 	return readRegister16(port, 1, 0x02) & _BV(2);
+}
+
+// IEEE control is at 0xN100: bit 11 powers the PHY down, bit 9 restarts autonegotiation.
+void SpiController::setInternalPhyPowerDown(uint8_t port, bool down) {
+	static constexpr uint16_t CONTROL_POWER_DOWN = 0x0800;
+	static constexpr uint16_t CONTROL_RESTART_ANEG = 0x0200;
+
+	uint16_t control = readRegister16(port, 1, 0x00) & ~(CONTROL_POWER_DOWN | CONTROL_RESTART_ANEG);
+	control |= down ? CONTROL_POWER_DOWN : CONTROL_RESTART_ANEG;
+	writeRegister16(port, 1, 0x00, control);
+}
+
+// 0xNB04 bit 2 transmit enable, bit 1 receive enable, bit 0 learning disable. The MSTP
+// pointer (0xNB01) is left at its default instance 0.
+void SpiController::setPortForwarding(uint8_t port, bool enabled) {
+	static constexpr uint8_t MSTP_FORWARD_AND_LEARN = 0x06;
+	static constexpr uint8_t MSTP_BLOCKED = 0x01;
+
+	writeRegister(port, 0xB, 0x04, enabled ? MSTP_FORWARD_AND_LEARN : MSTP_BLOCKED);
+}
+
+// The membership bits live in the low byte of the 32-bit register, at 0xNA07.
+void SpiController::setPortMembership(uint8_t port, uint8_t mask) {
+	writeRegister(port, 0xA, 0x07, mask & 0x7F);
+}
+
+void SpiController::setPortMirroring(uint8_t port, bool sniffer, bool mirrorRx, bool mirrorTx) {
+	static constexpr uint8_t MIRROR_RX_SNIFF = 0x40;
+	static constexpr uint8_t MIRROR_TX_SNIFF = 0x20;
+	static constexpr uint8_t MIRROR_SNIFFER_PORT = 0x02;
+
+	uint8_t control = 0;
+	if (sniffer)
+		control |= MIRROR_SNIFFER_PORT;
+	if (mirrorRx)
+		control |= MIRROR_RX_SNIFF;
+	if (mirrorTx)
+		control |= MIRROR_TX_SNIFF;
+	writeRegister(port, 8, 0x00, control);
+}
+
+// Port MIB control (0xN500): bit 25 starts a read and clears when the value has landed
+// in 0xN504, bits 23:16 select the counter, bits 3:0 hold bits 35:32 of the byte
+// counters, bit 31 flags an overflow since the last read.
+uint32_t SpiController::readMibCounter(uint8_t port, uint8_t index, uint8_t& high) {
+	static constexpr uint32_t MIB_READ_ENABLE = 1UL << 25;
+	static constexpr uint32_t MIB_OVERFLOW = 1UL << 31;
+	static constexpr uint8_t MIB_READ_ATTEMPTS = 100;
+
+	writeRegister32(port, 5, 0x00, MIB_READ_ENABLE | (static_cast<uint32_t>(index) << 16));
+	uint32_t control = MIB_READ_ENABLE;
+	for (uint8_t attempt = 0; attempt < MIB_READ_ATTEMPTS && (control & MIB_READ_ENABLE); attempt++)
+		control = readRegister32(port, 5, 0x00);
+
+	high = control & 0x0F;
+	if (control & MIB_OVERFLOW)
+		high |= 0x10;
+	return readRegister32(port, 5, 0x04);
+}
+
+// Flush is gated per port by bit 24 of 0xN500, then triggered for all gated ports at once
+// by the self-clearing flush bit in the switch MIB control register 0x0336.
+void SpiController::clearMibCounters() {
+	static constexpr uint32_t MIB_FLUSH_FREEZE_ENABLE = 1UL << 24;
+	static constexpr uint8_t SWITCH_MIB_FLUSH = 0x80;
+
+	for (uint8_t port = 1; port <= Board::PORT_COUNT; port++)
+		writeRegister32(port, 5, 0x00, MIB_FLUSH_FREEZE_ENABLE);
+	writeRegister(0, 3, 0x36, SWITCH_MIB_FLUSH);
+	writeRegister(0, 3, 0x36, 0x00);
 }

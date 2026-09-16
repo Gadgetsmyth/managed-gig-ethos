@@ -39,6 +39,14 @@ public:
 	// RGMII clock delay value in register 20E2.
 	void initializeDualPhy(uint8_t phyAddr = 0x00, uint16_t rgmiiDelay = DEFAULT_RGMII_DELAY);
 
+	// Write register 20E2 and soft-reset the PHY so the new delay takes effect. The link
+	// drops and renegotiates.
+	void setRgmiiDelay(uint8_t phyAddr, uint16_t rgmiiDelay);
+
+	// Power the PHY down (link drops, partner sees no link) or back up. Powering up also
+	// restarts autonegotiation.
+	void setPowerDown(uint8_t phyAddr, bool down);
+
 private:
 	const int mdcPin;
 	const int mdioPin;

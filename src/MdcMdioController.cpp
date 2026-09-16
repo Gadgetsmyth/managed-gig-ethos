@@ -138,21 +138,33 @@ void MdcMdioController::initializeDualPhy(uint8_t phyAddr, uint16_t rgmiiDelay) 
 	// soft reset again (set bit 15, default 0x1040)
 	writeRegister(phyAddr, 0x00, 0x9040);
 
-	// RGMII clock delays live in extended page 2 (register 31 = 0x0002 remaps 16-30).
-	writeRegister(phyAddr, 0x1f, 0x0002);
-	// Register 20E2: bits 6:4 delay the RX_CLK the PHY drives toward the switch, bits 2:0
-	// delay the TX_CLK it receives. Codes 0-7 give 0.2, 0.8, 1.1, 1.7, 2.0, 2.3, 2.6 and
-	// 3.4 ns. Bits 15:8 are reserved. The switch adds no delay of its own on ports 6-7
-	// (0xN301 bits 4:3 are cleared in SpiController::begin), so these are the whole
-	// RGMII skew budget. Default 0x0042 is 2.0 ns RX / 1.1 ns TX.
-	// TODO: tune this value further - links up and passes traffic, but needs more testing.
-	writeRegister(phyAddr, 0x14, rgmiiDelay);
-	// reset the extended field
-	writeRegister(phyAddr, 0x1f, 0x0000);
-
-	writeRegister(phyAddr, 0x00, 0x9040);
+	setRgmiiDelay(phyAddr, rgmiiDelay);
 	// turn smi duplication back off
 	writeRegister(phyAddr, 0x16, 0x3200);
+}
+
+// RGMII clock delays live in extended page 2 (register 31 = 0x0002 remaps 16-30).
+// Register 20E2: bits 6:4 delay the RX_CLK the PHY drives toward the switch, bits 2:0
+// delay the TX_CLK it receives. Codes 0-7 give 0.2, 0.8, 1.1, 1.7, 2.0, 2.3, 2.6 and
+// 3.4 ns. Bits 15:8 are reserved. The switch adds no delay of its own on ports 6-7
+// (0xN301 bits 4:3 are cleared in SpiController::begin), so these are the whole
+// RGMII skew budget. Default 0x0042 is 2.0 ns RX / 1.1 ns TX; the `rgmii` console
+// command changes it live for tuning.
+void MdcMdioController::setRgmiiDelay(uint8_t phyAddr, uint16_t rgmiiDelay) {
+	writeRegister(phyAddr, 0x1f, 0x0002);
+	writeRegister(phyAddr, 0x14, rgmiiDelay);
+	writeRegister(phyAddr, 0x1f, 0x0000);
+	// soft reset so the MAC interface picks up the new delay
+	writeRegister(phyAddr, 0x00, 0x9040);
+}
+
+// IEEE control register 0: bit 11 powers the PHY down, bit 9 restarts autonegotiation.
+void MdcMdioController::setPowerDown(uint8_t phyAddr, bool down) {
+	static constexpr uint16_t CONTROL_POWER_DOWN = 0x0800;
+	static constexpr uint16_t CONTROL_RESTART_ANEG = 0x0200;
+
+	writeRegisterMasked(phyAddr, 0x00, down ? CONTROL_POWER_DOWN : CONTROL_RESTART_ANEG,
+		CONTROL_POWER_DOWN | CONTROL_RESTART_ANEG);
 }
 
 uint32_t MdcMdioController::readPhyId(uint8_t phyAddr) {

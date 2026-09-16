@@ -23,6 +23,10 @@ public:
 	uint16_t readRegister16(uint8_t port, uint8_t function, uint8_t registerAddr);
 	void writeRegister16(uint8_t port, uint8_t function, uint8_t registerAddr, uint16_t data);
 
+	// Burst read/write of a big-endian 32-bit register starting at registerAddr.
+	uint32_t readRegister32(uint8_t port, uint8_t function, uint8_t registerAddr);
+	void writeRegister32(uint8_t port, uint8_t function, uint8_t registerAddr, uint32_t data);
+
 	// Chip identification from the global registers.
 	uint16_t readChipId();
 	uint8_t readRevision();
@@ -36,6 +40,30 @@ public:
 
 	// Link state of an internal PHY port (1-5), from the latched-low IEEE status bit.
 	bool readInternalPhyLink(uint8_t port);
+
+	// Power an internal PHY (ports 1-5) down or back up. Powering up also restarts
+	// autonegotiation so the link partner sees a fresh link.
+	void setInternalPhyPowerDown(uint8_t port, bool down);
+
+	// Port MSTP state (0xNB04): let the port forward traffic and learn addresses, or
+	// block both so a disabled port is silent even if its link comes up.
+	void setPortForwarding(uint8_t port, bool enabled);
+
+	// Port VLAN membership (0xNA04-0xNA07): the set of ports frames received on this
+	// port may be forwarded to, as a mask with bit N-1 for port N.
+	void setPortMembership(uint8_t port, uint8_t mask);
+
+	// Port mirroring control (0xN800): a port can be the sniffer that receives copies,
+	// and/or have its received and transmitted frames copied to the sniffer.
+	void setPortMirroring(uint8_t port, bool sniffer, bool mirrorRx, bool mirrorTx);
+
+	// Read one MIB counter through the port's indirect access registers. Counters clear
+	// on read. Returns bits 31:0; bits 35:32 of the byte counters and the overflow flag
+	// come back in `high` (0x10 marks overflow).
+	uint32_t readMibCounter(uint8_t port, uint8_t index, uint8_t& high);
+
+	// Zero every MIB counter on every port.
+	void clearMibCounters();
 
 private:
 	// Helper function to construct address
