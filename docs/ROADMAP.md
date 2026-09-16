@@ -48,9 +48,9 @@ and internal PHY paths: 94.0/94.4 Mbit/s at forced 100 with zero collisions or e
     and iperf around 94 Mbit/s. `speed 6 auto` returns it to 1000. Repeat `speed 1 100`
     on the router port to exercise the internal-PHY path.
 12. `ratelimit 6 out 110` then iperf from the Ubuntu box toward the PC (reverse mode):
-    expect about 105 Mbit/s. `ratelimit 6 in 110` and a forward run: expect the same, and
-    `counters 6` showing RxDropped climbing. `ratelimit 6 in off` / `out off` restores
-    941 Mbit/s. `qos on`, `qos 6 7`, `show`: expect the QoS line and Prio column, and
+    expect about 105 Mbit/s. `ratelimit 6 in 110` and a run the other way: expect the same
+    (the limiter throttles with pause frames; its discards do not show in RxDropped).
+    `ratelimit 6 in off` / `out off` restores 941 Mbit/s. `qos on`, `qos 6 7`, `show`: expect the QoS line and Prio column, and
     iperf unchanged (a single flow cannot show queueing). `qos off`.
 
 ## v0.3

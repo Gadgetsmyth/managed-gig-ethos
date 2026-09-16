@@ -605,7 +605,7 @@ void Terminal::handleRateLimitCommand(const char* args) {
 	Serial.print(F("Port "));
 	Serial.print(port);
 	Serial.print(ingress ? F(" ingress limit ") : F(" egress limit "));
-	printRateLimit(code);
+	printRateLimit(code, false);
 	Serial.println();
 }
 
@@ -751,9 +751,9 @@ void Terminal::handleShowCommand(const char* args) {
 		Serial.print(F("  "));
 		Serial.print(data.priority[i]);
 		Serial.print(F("     "));
-		printRateLimit(data.ingressLimit[i]);
+		printRateLimit(data.ingressLimit[i], true);
 		Serial.print(' ');
-		printRateLimit(data.egressLimit[i]);
+		printRateLimit(data.egressLimit[i], true);
 		Serial.print(' ');
 		printPortList(data.membership[i]);
 		Serial.println();
@@ -934,17 +934,21 @@ void Terminal::printSpeedSetting(uint8_t speed, bool padded) {
 	}
 }
 
-// Print a rate code as the Mb/s it gives on a gigabit link, padded to six columns.
-void Terminal::printRateLimit(uint8_t code) {
+// Print a rate code as the Mb/s it gives on a gigabit link, padded to six columns for `show`.
+void Terminal::printRateLimit(uint8_t code, bool padded) {
+	uint8_t width;
 	if (code == 0) {
-		Serial.print(F("off   "));
-		return;
+		Serial.print(F("off"));
+		width = 3;
+	} else {
+		uint16_t mbps = code <= 10 ? code : code * 10;
+		Serial.print(mbps);
+		Serial.print('M');
+		width = mbps >= 1000 ? 5 : mbps >= 100 ? 4 : mbps >= 10 ? 3 : 2;
 	}
-	uint16_t mbps = code <= 10 ? code : code * 10;
-	Serial.print(mbps);
-	Serial.print('M');
-	for (uint8_t pad = mbps >= 1000 ? 5 : mbps >= 100 ? 4 : mbps >= 10 ? 3 : 2; pad < 6; pad++)
-		Serial.print(' ');
+	if (padded)
+		for (; width < 6; width++)
+			Serial.print(' ');
 }
 
 void Terminal::printMirrorSetting() {

@@ -86,7 +86,7 @@ private:
 	void printLinkState(bool linkUp, uint8_t speedCode, bool fullDuplex, bool columns);
 	void printPortList(uint8_t mask);
 	void printSpeedSetting(uint8_t speed, bool padded);
-	void printRateLimit(uint8_t code);
+	void printRateLimit(uint8_t code, bool padded);
 	void printMirrorSetting();
 	bool verifySwitch();
 	bool verifyPhy(uint8_t phyAddr);
