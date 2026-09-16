@@ -178,19 +178,77 @@ avrdude -c usbasp -p m328p -U flash:w:.pio/build/Upload_UART/firmware.hex:i
 
 ## Serial console commands
 
+Switch management:
+
+```
+status                       Link, speed and duplex for all 7 ports ("off" if disabled)
+port <n> on|off              Enable or disable a port (blocks traffic and powers the PHY down)
+speed <n> auto|10|100|1000   Limit what a port negotiates; autonegotiation stays on
+qos on|off                   Four egress queues per port with 802.1p tags trusted, or one queue
+qos <n> <0-7>                Default priority for frames arriving on port <n> without a usable tag
+ratelimit <n> in|out <mbps>|off  Limit what a port receives or sends (see below)
+isolate <n> all|<p,p,...>    Limit which ports frames from port <n> may be forwarded to
+mirror <src> <dst> [rx|tx|both]  Copy port <src>'s traffic to <dst>; `mirror off` to stop
+counters <n>                 MIB counters for a port, cleared on read; `counters clear` zeroes all
+log on|off                   Print a line on the console whenever a port's link changes
+rgmii <0x00XY>               RGMII clock delay for both external PHYs (X = RX code, Y = TX code)
+```
+
+Configuration:
+
+```
+show                         Running configuration and whether it matches EEPROM
+save                         Store the running configuration in EEPROM
+defaults                     Return the running configuration to factory values (not saved)
+```
+
+Register access and diagnostics:
+
 ```
 read <address> <count>       SPI read of <count> bytes from switch register <address>, e.g. read 0x01FF 3
 write <address> <value>      SPI write one byte, e.g. write 0x01FF 0xC0
 readmdc <phy> <reg>          MDIO read, e.g. readmdc 0x01 0x00
 writemdc <phy> <reg> <val>   MDIO write, e.g. writemdc 0x01 0x00 0x1234
 scanmdc                      Find the first responding PHY address
-status                       Link, speed and duplex for all 7 ports
 selftest                     Re-check the switch and PHY chip IDs
 version                      Firmware version and build time
 reboot                       Restart the controller
 hang                         Stop servicing the watchdog, to prove it fires (test only)
 help                         List commands
 ```
+
+Every management command takes effect immediately and changes the running configuration.
+Nothing is written to EEPROM until `save`; `show` says whether the two differ. At boot the
+stored configuration is loaded (magic, layout version and CRC-8 checked, defaults on any
+mismatch) and applied before the prompt appears.
+
+`speed` narrows the autonegotiation advertisement (IEEE registers 4 and 9) to one speed
+rather than disabling autonegotiation, so the partner still negotiates and duplex is
+resolved correctly. The link drops and renegotiates when the setting changes.
+
+`qos on` gives every port four egress queues and trusts the priority field of 802.1Q-tagged
+frames; `qos <n> <p>` sets the priority used for anything else arriving on that port. The
+switch maps priorities 0-1, 2-3, 4-5 and 6-7 to queues 0-3 and services them with its
+default weighted round robin, so high priority traffic is favoured without starving the
+rest. With `qos off` there is a single queue and priorities have no effect.
+
+`ratelimit` uses the switch's port-based limiters. The hardware value is a 7-bit code
+whose meaning scales with link speed, so the command takes the rate it gives on a
+gigabit link: 1-10 Mb/s, or 110-1000 Mb/s in steps of 10. On a 100 Mb/s link the same
+setting limits to the code in Mb/s (so a setting of 500 limits a 100 Mb/s port to 50).
+Egress limits shape traffic by queueing it. Ingress limits throttle the sender with pause
+frames, so the attached device must have flow control enabled: every PHY advertises pause,
+but a NIC whose driver has pause switched off (`ethtool -a` showing `RX: off`) ignores the
+frames and is not limited at all. `sudo ethtool -A <iface> rx on tx on` fixes that on
+Linux. With pause honoured, a TCP flow runs at the configured rate with no retransmits.
+
+`isolate` is one-way: `isolate 3 1` stops port 3 reaching anything but port 1, while
+port 1 still reaches port 3 unless its own list is narrowed too. It uses the switch's
+port VLAN membership registers, not 802.1Q tags.
+
+`counters` reads the switch's hardware MIB counters, which the chip clears as each one is
+read, so every listing covers the time since the previous one. A `+` after a value means
+the counter exceeded 32 bits or overflowed.
 
 `status` reads ports 1-5 from the switch's internal PHYs and ports 6-7 from the external
 PHYs over MDIO. For 6 and 7 it also shows the switch's RGMII MAC setting. The switch

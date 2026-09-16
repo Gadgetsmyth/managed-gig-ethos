@@ -5,16 +5,19 @@
 #include "Board.h"
 #include "MdcMdioController.h"
 #include "SpiController.h"
+#include "Settings.h"
+#include "Terminal.h"
 
-// Keeps the KSZ9897R's fixed-speed RGMII MAC ports in step with what the external
-// VSC8531 PHYs negotiate. The switch has no way to learn link speed on ports 6 and 7
-// itself, so without this a 10 or 100 Mb/s partner on those ports passes no traffic.
+// Polls every port for link changes and reports them on the console, and keeps the
+// KSZ9897R's fixed-speed RGMII MAC ports in step with what the external VSC8531 PHYs
+// negotiate. The switch has no way to learn link speed on ports 6 and 7 itself, so
+// without this a 10 or 100 Mb/s partner on those ports passes no traffic.
 class LinkSync {
 public:
-	LinkSync(MdcMdioController& mdc, SpiController& spi);
+	LinkSync(MdcMdioController& mdc, SpiController& spi, Settings& settings, Terminal& terminal);
 
-	// Poll every external PHY; reprogram its MAC port only when link and autonegotiation
-	// are complete and the resolved speed or duplex changed since the last write.
+	// Poll every port. External ports also have their MAC reprogrammed when link and
+	// autonegotiation are complete and the resolved speed or duplex changed.
 	void poll();
 
 private:
@@ -34,13 +37,20 @@ private:
 
 	MdcMdioController& mdcController;
 	SpiController& spiController;
+	Settings& settings;
+	Terminal& terminal;
+
+	// Link state at the last poll, bit N-1 for port N, so only changes are reported.
+	uint8_t linkUpMask;
 
 	// Last values written per external port, so unchanged links cost no SPI traffic.
 	uint8_t lastControl0[EXTERNAL_PORT_COUNT];
 	uint8_t lastControl1[EXTERNAL_PORT_COUNT];
 	bool haveLastValues[EXTERNAL_PORT_COUNT];
 
-	void syncPort(uint8_t port);
+	void pollInternalPort(uint8_t port);
+	void pollExternalPort(uint8_t port);
+	void reportLink(uint8_t port, bool linkUp, uint8_t speedCode, bool fullDuplex);
 
 	// Translate a VSC8531 auxiliary status word into the two XMII control bytes.
 	// Returns false if the speed field is the reserved value.

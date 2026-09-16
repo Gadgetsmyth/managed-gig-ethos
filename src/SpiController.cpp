@@ -1,4 +1,6 @@
 #include "SpiController.h"
+#include "Board.h"
+#include "Phy.h"
 
 // SPI command bytes: the top 3 bits select the operation, the low 5 bits are don't-care.
 static constexpr uint8_t SPI_WRITE_COMMAND = 0x40; // 010xxxxx
@@ -90,6 +92,25 @@ void SpiController::writeRegister16(
 	endTransfer();
 }
 
+uint32_t SpiController::readRegister32(uint8_t port, uint8_t function, uint8_t registerAddr) {
+	startTransfer(SPI_READ_COMMAND, constructAddress(port, function, registerAddr));
+	uint32_t data = 0;
+	for (uint8_t i = 0; i < 4; i++)
+		data = (data << 8) | SPI.transfer(0x00);
+	endTransfer();
+	return data;
+}
+
+void SpiController::writeRegister32(
+	uint8_t port, uint8_t function, uint8_t registerAddr, uint32_t data) {
+	startTransfer(SPI_WRITE_COMMAND, constructAddress(port, function, registerAddr));
+	SPI.transfer(data >> 24);
+	SPI.transfer(data >> 16);
+	SPI.transfer(data >> 8);
+	SPI.transfer(data);
+	endTransfer();
+}
+
 // The internal PHYs expose IEEE registers 13 (MMD setup) and 14 (MMD data) at
 // 0xN11A and 0xN11C. Select the device with op 00, load the register address, then
 // switch to data mode (op 01, no post-increment) and write the value.
@@ -160,8 +181,13 @@ void SpiController::applySwitchErrata() {
 	// Module 11: collision-based rather than CRS-based back pressure
 	writeRegister(0, 3, 0x31, 0xD0);
 
-	for (uint8_t port = FIRST_PHY_PORT; port <= LAST_PHY_PORT; port++)
+	// Advertise pause alongside every speed, ahead of the restart below so it costs no
+	// extra negotiation. Per-port speed limits from the settings are applied after boot.
+	for (uint8_t port = FIRST_PHY_PORT; port <= LAST_PHY_PORT; port++) {
+		writeRegister16Masked(port, 1, 2 * Phy::REG_ADVERTISE,
+			Phy::advertise10_100(Phy::SPEED_AUTO), Phy::ADVERTISE_10_100_MASK);
 		writeRegister16(port, 1, PHY_CONTROL, ANEG_ENABLE_RESTART);
+	}
 }
 
 uint8_t SpiController::readPortStatus(uint8_t port) {
@@ -173,4 +199,134 @@ bool SpiController::readInternalPhyLink(uint8_t port) {
 	// first read reports history and the second the current state.
 	readRegister16(port, 1, 0x02);
 	return readRegister16(port, 1, 0x02) & _BV(2);
+}
+
+// IEEE registers sit at 0xN100 + 2 * register. Leaving power-down restarts
+// autonegotiation on its own.
+void SpiController::setInternalPhyPowerDown(uint8_t port, bool down) {
+	uint16_t control = readRegister16(port, 1, 2 * Phy::REG_CONTROL) & ~Phy::CONTROL_POWER_DOWN;
+	if (down)
+		control |= Phy::CONTROL_POWER_DOWN;
+	writeRegister16(port, 1, 2 * Phy::REG_CONTROL, control);
+}
+
+void SpiController::setInternalPhySpeed(uint8_t port, uint8_t speed) {
+	writeRegister16Masked(
+		port, 1, 2 * Phy::REG_ADVERTISE, Phy::advertise10_100(speed), Phy::ADVERTISE_10_100_MASK);
+	writeRegister16Masked(
+		port, 1, 2 * Phy::REG_1000T_CONTROL, Phy::advertise1000(speed), Phy::ADVERTISE_1000_MASK);
+	writeRegister16Masked(
+		port, 1, 2 * Phy::REG_CONTROL, Phy::CONTROL_RESTART_ANEG, Phy::CONTROL_RESTART_ANEG);
+}
+
+void SpiController::writeRegisterMasked(
+	uint8_t port, uint8_t function, uint8_t registerAddr, uint8_t data, uint8_t mask) {
+	uint8_t current = readRegister(port, function, registerAddr);
+	writeRegister(port, function, registerAddr, (current & ~mask) | (data & mask));
+}
+
+void SpiController::writeRegister16Masked(
+	uint8_t port, uint8_t function, uint8_t registerAddr, uint16_t data, uint16_t mask) {
+	uint16_t current = readRegister16(port, function, registerAddr);
+	writeRegister16(port, function, registerAddr, (current & ~mask) | (data & mask));
+}
+
+// 0xNB04 bit 2 transmit enable, bit 1 receive enable, bit 0 learning disable. The MSTP
+// pointer (0xNB01) is left at its default instance 0.
+void SpiController::setPortForwarding(uint8_t port, bool enabled) {
+	static constexpr uint8_t MSTP_FORWARD_AND_LEARN = 0x06;
+	static constexpr uint8_t MSTP_BLOCKED = 0x01;
+
+	writeRegister(port, 0xB, 0x04, enabled ? MSTP_FORWARD_AND_LEARN : MSTP_BLOCKED);
+}
+
+// The membership bits live in the low byte of the 32-bit register, at 0xNA07.
+void SpiController::setPortMembership(uint8_t port, uint8_t mask) {
+	writeRegister(port, 0xA, 0x07, mask & 0x7F);
+}
+
+void SpiController::setPortMirroring(uint8_t port, bool sniffer, bool mirrorRx, bool mirrorTx) {
+	static constexpr uint8_t MIRROR_RX_SNIFF = 0x40;
+	static constexpr uint8_t MIRROR_TX_SNIFF = 0x20;
+	static constexpr uint8_t MIRROR_SNIFFER_PORT = 0x02;
+
+	uint8_t control = 0;
+	if (sniffer)
+		control |= MIRROR_SNIFFER_PORT;
+	if (mirrorRx)
+		control |= MIRROR_RX_SNIFF;
+	if (mirrorTx)
+		control |= MIRROR_TX_SNIFF;
+	writeRegister(port, 8, 0x00, control);
+}
+
+void SpiController::setPortFourQueues(uint8_t port, bool fourQueues) {
+	static constexpr uint8_t QUEUE_SPLIT_MASK = 0x03;
+	static constexpr uint8_t QUEUE_SPLIT_FOUR = 0x02;
+
+	writeRegisterMasked(port, 0, 0x20, fourQueues ? QUEUE_SPLIT_FOUR : 0, QUEUE_SPLIT_MASK);
+}
+
+void SpiController::setPort8021pClassification(uint8_t port, bool enabled) {
+	static constexpr uint8_t CLASSIFY_8021P = 0x04;
+
+	writeRegisterMasked(port, 8, 0x01, enabled ? CLASSIFY_8021P : 0, CLASSIFY_8021P);
+}
+
+void SpiController::setPortDefaultPriority(uint8_t port, uint8_t priority) {
+	writeRegisterMasked(port, 8, 0x02, priority, 0x07);
+}
+
+// Ingress limiting is switched to port-based (0xN403 bit 6) so only the priority 0 rate
+// register (0xN410) applies; the switch latches the new rate when the priority 7 register
+// (0xN417) is written. Bit 4 makes the limiter assert pause frames rather than drop:
+// a dropping limiter drove a TCP flow down to a third of the configured rate on the
+// bench, while pause holds it at the limit.
+void SpiController::setIngressRateLimit(uint8_t port, uint8_t code) {
+	static constexpr uint8_t INGRESS_PORT_BASED = 0x40;
+	static constexpr uint8_t INGRESS_FLOW_CONTROL = 0x10;
+
+	writeRegisterMasked(port, 4, 0x03, INGRESS_PORT_BASED | INGRESS_FLOW_CONTROL,
+		INGRESS_PORT_BASED | INGRESS_FLOW_CONTROL);
+	writeRegister(port, 4, 0x10, code);
+	writeRegister(port, 4, 0x17, 0x00);
+}
+
+// Egress limiting is port-based by default (switch MAC control 5, 0x0335 bit 3 clear), so
+// only the queue 0 register (0xN420) applies; writing the queue 3 register (0xN423)
+// latches the new rate.
+void SpiController::setEgressRateLimit(uint8_t port, uint8_t code) {
+	writeRegister(port, 4, 0x20, code);
+	writeRegister(port, 4, 0x23, 0x00);
+}
+
+// Port MIB control (0xN500): bit 25 starts a read and clears when the value has landed
+// in 0xN504, bits 23:16 select the counter, bits 3:0 hold bits 35:32 of the byte
+// counters, bit 31 flags an overflow since the last read.
+uint32_t SpiController::readMibCounter(uint8_t port, uint8_t index, uint8_t& high) {
+	static constexpr uint32_t MIB_READ_ENABLE = 1UL << 25;
+	static constexpr uint32_t MIB_OVERFLOW = 1UL << 31;
+	static constexpr uint8_t MIB_READ_ATTEMPTS = 100;
+
+	writeRegister32(port, 5, 0x00, MIB_READ_ENABLE | (static_cast<uint32_t>(index) << 16));
+	uint32_t control = MIB_READ_ENABLE;
+	for (uint8_t attempt = 0; attempt < MIB_READ_ATTEMPTS && (control & MIB_READ_ENABLE); attempt++)
+		control = readRegister32(port, 5, 0x00);
+
+	high = control & 0x0F;
+	if (control & MIB_OVERFLOW)
+		high |= 0x10;
+	return readRegister32(port, 5, 0x04);
+}
+
+// Flush is gated per port by bit 24 of 0xN500, then triggered for all gated ports at once
+// by the self-clearing flush bit in the switch MIB control register 0x0336.
+void SpiController::clearMibCounters() {
+	static constexpr uint32_t MIB_FLUSH_FREEZE_ENABLE = 1UL << 24;
+	static constexpr uint8_t SWITCH_MIB_FLUSH = 0x80;
+
+	for (uint8_t port = 1; port <= Board::PORT_COUNT; port++)
+		writeRegister32(port, 5, 0x00, MIB_FLUSH_FREEZE_ENABLE);
+	writeRegister(0, 3, 0x36, SWITCH_MIB_FLUSH);
+	writeRegister(0, 3, 0x36, 0x00);
 }

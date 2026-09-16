@@ -1,4 +1,5 @@
 #include "MdcMdioController.h"
+#include "Phy.h"
 
 // Half-period of the bit-banged MDC clock, in microseconds.
 static constexpr uint8_t DELAY_US = 10;
@@ -138,21 +139,40 @@ void MdcMdioController::initializeDualPhy(uint8_t phyAddr, uint16_t rgmiiDelay) 
 	// soft reset again (set bit 15, default 0x1040)
 	writeRegister(phyAddr, 0x00, 0x9040);
 
-	// RGMII clock delays live in extended page 2 (register 31 = 0x0002 remaps 16-30).
-	writeRegister(phyAddr, 0x1f, 0x0002);
-	// Register 20E2: bits 6:4 delay the RX_CLK the PHY drives toward the switch, bits 2:0
-	// delay the TX_CLK it receives. Codes 0-7 give 0.2, 0.8, 1.1, 1.7, 2.0, 2.3, 2.6 and
-	// 3.4 ns. Bits 15:8 are reserved. The switch adds no delay of its own on ports 6-7
-	// (0xN301 bits 4:3 are cleared in SpiController::begin), so these are the whole
-	// RGMII skew budget. Default 0x0042 is 2.0 ns RX / 1.1 ns TX.
-	// TODO: tune this value further - links up and passes traffic, but needs more testing.
-	writeRegister(phyAddr, 0x14, rgmiiDelay);
-	// reset the extended field
-	writeRegister(phyAddr, 0x1f, 0x0000);
-
-	writeRegister(phyAddr, 0x00, 0x9040);
+	setRgmiiDelay(phyAddr, rgmiiDelay);
 	// turn smi duplication back off
 	writeRegister(phyAddr, 0x16, 0x3200);
+}
+
+// RGMII clock delays live in extended page 2 (register 31 = 0x0002 remaps 16-30).
+// Register 20E2: bits 6:4 delay the RX_CLK the PHY drives toward the switch, bits 2:0
+// delay the TX_CLK it receives. Codes 0-7 give 0.2, 0.8, 1.1, 1.7, 2.0, 2.3, 2.6 and
+// 3.4 ns. Bits 15:8 are reserved. The switch adds no delay of its own on ports 6-7
+// (0xN301 bits 4:3 are cleared in SpiController::begin), so these are the whole
+// RGMII skew budget. Default 0x0042 is 2.0 ns RX / 1.1 ns TX; the `rgmii` console
+// command changes it live for tuning.
+void MdcMdioController::setRgmiiDelay(uint8_t phyAddr, uint16_t rgmiiDelay) {
+	writeRegister(phyAddr, 0x1f, 0x0002);
+	writeRegister(phyAddr, 0x14, rgmiiDelay);
+	writeRegister(phyAddr, 0x1f, 0x0000);
+	// soft reset so the MAC interface picks up the new delay
+	writeRegister(phyAddr, 0x00, 0x9040);
+}
+
+// Leaving power-down restarts autonegotiation by itself; also setting the restart bit
+// made the link come up and drop once more on the bench.
+void MdcMdioController::setPowerDown(uint8_t phyAddr, bool down) {
+	writeRegisterMasked(
+		phyAddr, Phy::REG_CONTROL, down ? Phy::CONTROL_POWER_DOWN : 0, Phy::CONTROL_POWER_DOWN);
+}
+
+void MdcMdioController::setSpeed(uint8_t phyAddr, uint8_t speed) {
+	writeRegisterMasked(
+		phyAddr, Phy::REG_ADVERTISE, Phy::advertise10_100(speed), Phy::ADVERTISE_10_100_MASK);
+	writeRegisterMasked(
+		phyAddr, Phy::REG_1000T_CONTROL, Phy::advertise1000(speed), Phy::ADVERTISE_1000_MASK);
+	writeRegisterMasked(
+		phyAddr, Phy::REG_CONTROL, Phy::CONTROL_RESTART_ANEG, Phy::CONTROL_RESTART_ANEG);
 }
 
 uint32_t MdcMdioController::readPhyId(uint8_t phyAddr) {

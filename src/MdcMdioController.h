@@ -32,12 +32,26 @@ public:
 	static constexpr uint8_t AUX_STATUS_SPEED_MASK = 0x03;
 	static constexpr uint16_t AUX_STATUS_FULL_DUPLEX = 0x0020;
 
-	// Default for register 20E2: RX_CLK delay 2.0 ns (bits 6:4), TX_CLK delay 1.1 ns (bits 2:0).
-	static constexpr uint16_t DEFAULT_RGMII_DELAY = 0x0042;
+	// Default for register 20E2: RX_CLK delay 2.0 ns (bits 6:4), TX_CLK delay 2.0 ns (bits 2:0).
+	// 0x0042 (1.1 ns TX) and 0x0044 both ran error-free at 941 Mbit/s on the bench; 0x0044
+	// leaves more margin against the switch's 1.0 ns receive minimum.
+	static constexpr uint16_t DEFAULT_RGMII_DELAY = 0x0044;
 
 	// Apply the bring-up register sequence to the PHY at phyAddr, ending with the given
 	// RGMII clock delay value in register 20E2.
 	void initializeDualPhy(uint8_t phyAddr = 0x00, uint16_t rgmiiDelay = DEFAULT_RGMII_DELAY);
+
+	// Write register 20E2 and soft-reset the PHY so the new delay takes effect. The link
+	// drops and renegotiates. The reset returns every register to its default, so the
+	// caller must re-apply the advertisement with setSpeed() afterwards.
+	void setRgmiiDelay(uint8_t phyAddr, uint16_t rgmiiDelay);
+
+	// Power the PHY down (link drops, partner sees no link) or back up, which renegotiates.
+	void setPowerDown(uint8_t phyAddr, bool down);
+
+	// Limit what the PHY advertises to one Phy::Speed (or everything for SPEED_AUTO) and
+	// restart autonegotiation.
+	void setSpeed(uint8_t phyAddr, uint8_t speed);
 
 private:
 	const int mdcPin;

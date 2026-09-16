@@ -23,6 +23,13 @@ constexpr uint8_t FIRST_EXTERNAL_PORT = 6;
 // MDIO address of the PHY on each external port, indexed by port - FIRST_EXTERNAL_PORT.
 constexpr uint8_t PHY_ADDRESSES[] = {0x00, 0x10};
 
+// Port masks use bit N-1 for port N, the same layout as the switch's own port registers.
+constexpr uint8_t ALL_PORTS_MASK = (1 << PORT_COUNT) - 1;
+
+inline uint8_t portBit(uint8_t port) {
+	return 1 << (port - 1);
+}
+
 inline bool isExternalPort(uint8_t port) {
 	return port >= FIRST_EXTERNAL_PORT;
 }
