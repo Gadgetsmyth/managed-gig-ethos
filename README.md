@@ -178,19 +178,53 @@ avrdude -c usbasp -p m328p -U flash:w:.pio/build/Upload_UART/firmware.hex:i
 
 ## Serial console commands
 
+Switch management:
+
+```
+status                       Link, speed and duplex for all 7 ports ("off" if disabled)
+port <n> on|off              Enable or disable a port (blocks traffic and powers the PHY down)
+isolate <n> all|<p,p,...>    Limit which ports frames from port <n> may be forwarded to
+mirror <src> <dst> [rx|tx|both]  Copy port <src>'s traffic to <dst>; `mirror off` to stop
+counters <n>                 MIB counters for a port, cleared on read; `counters clear` zeroes all
+log on|off                   Print a line on the console whenever a port's link changes
+rgmii <0x00XY>               RGMII clock delay for both external PHYs (X = RX code, Y = TX code)
+```
+
+Configuration:
+
+```
+show                         Running configuration and whether it matches EEPROM
+save                         Store the running configuration in EEPROM
+defaults                     Return the running configuration to factory values (not saved)
+```
+
+Register access and diagnostics:
+
 ```
 read <address> <count>       SPI read of <count> bytes from switch register <address>, e.g. read 0x01FF 3
 write <address> <value>      SPI write one byte, e.g. write 0x01FF 0xC0
 readmdc <phy> <reg>          MDIO read, e.g. readmdc 0x01 0x00
 writemdc <phy> <reg> <val>   MDIO write, e.g. writemdc 0x01 0x00 0x1234
 scanmdc                      Find the first responding PHY address
-status                       Link, speed and duplex for all 7 ports
 selftest                     Re-check the switch and PHY chip IDs
 version                      Firmware version and build time
 reboot                       Restart the controller
 hang                         Stop servicing the watchdog, to prove it fires (test only)
 help                         List commands
 ```
+
+Every management command takes effect immediately and changes the running configuration.
+Nothing is written to EEPROM until `save`; `show` says whether the two differ. At boot the
+stored configuration is loaded (magic, layout version and CRC-8 checked, defaults on any
+mismatch) and applied before the prompt appears.
+
+`isolate` is one-way: `isolate 3 1` stops port 3 reaching anything but port 1, while
+port 1 still reaches port 3 unless its own list is narrowed too. It uses the switch's
+port VLAN membership registers, not 802.1Q tags.
+
+`counters` reads the switch's hardware MIB counters, which the chip clears as each one is
+read, so every listing covers the time since the previous one. A `+` after a value means
+the counter exceeded 32 bits or overflowed.
 
 `status` reads ports 1-5 from the switch's internal PHYs and ports 6-7 from the external
 PHYs over MDIO. For 6 and 7 it also shows the switch's RGMII MAC setting. The switch
