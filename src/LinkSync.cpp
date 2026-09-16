@@ -1,7 +1,9 @@
 #include "LinkSync.h"
 
-LinkSync::LinkSync(MdcMdioController& mdc, SpiController& spi)
-	: mdcController(mdc), spiController(spi) {
+LinkSync::LinkSync(
+	MdcMdioController& mdc, SpiController& spi, Settings& settings, Terminal& terminal)
+	: mdcController(mdc), spiController(spi), settings(settings), terminal(terminal),
+	  linkUpMask(0) {
 	for (uint8_t i = 0; i < EXTERNAL_PORT_COUNT; i++) {
 		lastControl0[i] = 0;
 		lastControl1[i] = 0;
@@ -10,8 +12,12 @@ LinkSync::LinkSync(MdcMdioController& mdc, SpiController& spi)
 }
 
 void LinkSync::poll() {
-	for (uint8_t port = Board::FIRST_EXTERNAL_PORT; port <= Board::PORT_COUNT; port++)
-		syncPort(port);
+	for (uint8_t port = 1; port <= Board::PORT_COUNT; port++) {
+		if (Board::isExternalPort(port))
+			pollExternalPort(port);
+		else
+			pollInternalPort(port);
+	}
 }
 
 bool LinkSync::mapToXmiiControl(uint16_t auxStatus, uint8_t& control0, uint8_t& control1) {
@@ -33,19 +39,42 @@ bool LinkSync::mapToXmiiControl(uint16_t auxStatus, uint8_t& control0, uint8_t& 
 	return true;
 }
 
-void LinkSync::syncPort(uint8_t port) {
+void LinkSync::pollInternalPort(uint8_t port) {
+	bool linkUp = spiController.readInternalPhyLink(port);
+	uint8_t portStatus = linkUp ? spiController.readPortStatus(port) : 0;
+	reportLink(port, linkUp,
+		(portStatus >> SpiController::PORT_STATUS_SPEED_SHIFT) &
+			SpiController::PORT_STATUS_SPEED_MASK,
+		portStatus & SpiController::PORT_STATUS_FULL_DUPLEX);
+}
+
+void LinkSync::pollExternalPort(uint8_t port) {
 	uint8_t phyAddr = Board::phyAddressForPort(port);
 	uint8_t index = port - Board::FIRST_EXTERNAL_PORT;
 
-	// The link bit latches low on a drop, so a single read here reports "down" once
-	// after any flap and the port is re-synced on the following poll.
+	// The link bit latches low on a drop. A second read after a "down" reports the
+	// current state, so a flap that already recovered is not logged as an outage.
 	uint16_t basicStatus = mdcController.readRegister(phyAddr, 0x01);
-	if ((basicStatus & (BMSR_LINK_UP | BMSR_ANEG_COMPLETE)) != (BMSR_LINK_UP | BMSR_ANEG_COMPLETE))
+	if (!(basicStatus & BMSR_LINK_UP))
+		basicStatus = mdcController.readRegister(phyAddr, 0x01);
+
+	if (!(basicStatus & BMSR_LINK_UP)) {
+		reportLink(port, false, 0, false);
+		return;
+	}
+
+	uint16_t auxStatus = mdcController.readAuxStatus(phyAddr);
+	reportLink(port, true,
+		(auxStatus >> MdcMdioController::AUX_STATUS_SPEED_SHIFT) &
+			MdcMdioController::AUX_STATUS_SPEED_MASK,
+		auxStatus & MdcMdioController::AUX_STATUS_FULL_DUPLEX);
+
+	if (!(basicStatus & BMSR_ANEG_COMPLETE))
 		return;
 
 	uint8_t control0 = 0;
 	uint8_t control1 = 0;
-	if (!mapToXmiiControl(mdcController.readAuxStatus(phyAddr), control0, control1))
+	if (!mapToXmiiControl(auxStatus, control0, control1))
 		return;
 
 	if (haveLastValues[index] && lastControl0[index] == control0 && lastControl1[index] == control1)
@@ -56,4 +85,16 @@ void LinkSync::syncPort(uint8_t port) {
 	lastControl0[index] = control0;
 	lastControl1[index] = control1;
 	haveLastValues[index] = true;
+}
+
+void LinkSync::reportLink(uint8_t port, bool linkUp, uint8_t speedCode, bool fullDuplex) {
+	uint8_t bit = Board::portBit(port);
+	if (static_cast<bool>(linkUpMask & bit) == linkUp)
+		return;
+	if (linkUp)
+		linkUpMask |= bit;
+	else
+		linkUpMask &= ~bit;
+	if (settings.data.linkLog)
+		terminal.printLinkEvent(port, linkUp, speedCode, fullDuplex);
 }

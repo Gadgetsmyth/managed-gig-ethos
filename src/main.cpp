@@ -1,17 +1,20 @@
 #include <Arduino.h>
 #include "Board.h"
 #include "Watchdog.h"
+#include "Settings.h"
 #include "SpiController.h"
 #include "MdcMdioController.h"
 #include "Terminal.h"
 #include "LinkSync.h"
 
+Settings settings;
 SpiController spiController(Board::SWITCH_CS_PIN);
 MdcMdioController mdcController(Board::MDC_PIN, Board::MDIO_PIN);
-Terminal terminal(spiController, mdcController);
-LinkSync linkSync(mdcController, spiController);
+Terminal terminal(spiController, mdcController, settings);
+LinkSync linkSync(mdcController, spiController, settings, terminal);
 
-// How often the external PHYs are polled to keep the RGMII MAC speed in step.
+// How often every port is polled for link changes and, on the external ports, to keep
+// the RGMII MAC speed in step with the PHY.
 static constexpr unsigned long LINK_POLL_INTERVAL_MS = 100;
 static unsigned long lastLinkPollMs = 0;
 
@@ -26,6 +29,9 @@ void setup() {
 	terminal.printBanner();
 	Watchdog::printResetCause();
 
+	if (!settings.load())
+		Serial.println(F("Config: no saved settings, using defaults"));
+
 	// delay for the clock to be stable
 	delay(250);
 
@@ -37,7 +43,7 @@ void setup() {
 
 	// Bring up both PHYs
 	for (uint8_t phyAddr : Board::PHY_ADDRESSES)
-		mdcController.initializeDualPhy(phyAddr);
+		mdcController.initializeDualPhy(phyAddr, settings.data.rgmiiDelay);
 
 	delay(250);
 
@@ -46,6 +52,9 @@ void setup() {
 
 	// Report whether every chip answered with the expected ID
 	terminal.printChipCheck();
+
+	// Port enables, isolation and mirroring from the saved configuration
+	terminal.applySettingsAtBoot();
 
 	// Initialize terminal
 	terminal.begin();
