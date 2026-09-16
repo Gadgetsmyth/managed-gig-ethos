@@ -52,6 +52,15 @@ PHY 0x10 VSC8531 rev 2: OK
 Three `OK` lines mean the microcontroller, the switch and both PHYs are alive and wired
 correctly. The "no saved settings" line is expected on a new part.
 
+## Validation record
+
+2026-09-15, `managed-gig-ethos-v0.2.0-factory.hex` (sha256 `14016b73207c2e40...`): programmed
+the bench board over a USBasp with the command above. Flash verified at 23,284 bytes, all
+fuses and lock verified. First boot printed the `v0.2.0` banner and three `OK` lines; the
+reset cause read as a watchdog flag, which only happens when urboot ran. A UART upload
+through the bootloader then succeeded and the new banner appeared. Saved EEPROM settings
+survived the chip erase.
+
 ## Rebuilding the image
 
 From a clean checkout of the release tag:
