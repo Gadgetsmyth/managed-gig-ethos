@@ -30,7 +30,11 @@ avrdude -c usbasp -P usb -p m328p -e \
   -U lock:w:0xFF:m
 ```
 
-Set the USBasp's voltage jumper to 3.3 V to match the board. Expect the signature
+Set the USBasp's voltage jumper to 3.3 V. The ATmega runs from a 2.5 V rail, so the
+programmer's 3.3 V signals sit 0.8 V above the part's supply, past its rated maximum of
+VCC + 0.5 V; the input clamp diodes absorb it and this is how every board so far has been
+programmed, but a USBasp with a 2.5 V option or a level shifter on the ISP lines would
+remove the overstress. Do not let the programmer's VCC pin feed the board. Expect the signature
 `0x1e950f`. Two lines reading "cannot set sck period; please check for usbasp firmware
 update" are harmless on USBasp clones with older firmware. An Atmel ICE works with
 `-c atmelice_isp` in place of `-c usbasp`.
