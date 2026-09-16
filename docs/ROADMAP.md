@@ -8,7 +8,7 @@ decisions are in `docs/HANDOFF.md`.
 | Version | Contents | State |
 |---|---|---|
 | v0.1 | Reliability baseline: flash strings, watchdog with reset-cause reporting, chip ID checks at boot, `status`, `version`, KSZ9897R errata, MAC-follows-PHY speed tracking on ports 6-7 | Merged (PR #3), not yet tagged |
-| v0.2 | Managed-switch commands: `port`, `isolate`, `mirror`, `counters`, `log`, `rgmii`, plus `show` / `save` / `defaults` with EEPROM persistence | Implemented, awaiting bench test |
+| v0.2 | Managed-switch commands: `port`, `isolate`, `mirror`, `counters`, `log`, `rgmii`, plus `show` / `save` / `defaults` with EEPROM persistence | Bench-tested 2026-09-15, all steps pass except `mirror`, which needs a capture host |
 | v0.3 | Below | Planned |
 
 Footprint after v0.2: 19.7 KB flash of 32 KB (urboot takes the top 0.5 KB), 286 bytes
@@ -17,6 +17,10 @@ static RAM of 2 KB. About 12 KB of flash remains for v0.3.
 ## v0.2 bench test plan
 
 Run after flashing, in this order. Each step is independent of the ones after it.
+Results from 2026-09-15 (build 4bfe7b4, PC on port 6, router on port 1): steps 1-4 and
+6-10 pass. Step 5 not run (no capture host on the bench). Step 8 ran 2.7 GB through port 6
+in both directions at 0x0044 with zero CRC, symbol, alignment and drop counts, matching
+0x0042; 0x0044 is now the compiled default.
 
 1. Boot. Expect `Config: no saved settings, using defaults` the first time, then the chip
    checks, then one `link: port N up ...` line per connected port.
@@ -89,8 +93,8 @@ its own, per the one-step-at-a-time working style.
   nibble or the overflow flag is set. Printing the full value needs 64-bit division, about
   1 KB of flash; deferred.
 - **`counters clear` uses the chip's flush mechanism** (`0x0336` bit 7 gated by `0xN500`
-  bit 24). Verify on the bench that it zeroes counters on all seven ports; the fallback is
-  to read every counter once.
-- **Disabled ports power the PHY down.** For the internal PHYs this is IEEE register 0 bit
-  11 through SPI. Confirm on the bench that the link LED on the partner goes out and that
-  `port N on` renegotiates without a reboot.
+  bit 24). Verified: after a 1.3 GB transfer through port 1, a clear followed by
+  `counters 1` showed only background traffic.
+- **Disabled ports power the PHY down.** Verified on port 6: the partner sees the cable
+  unplugged and `port N on` renegotiates without a reboot. Ports 1-5 use the same IEEE bit
+  through SPI but have not been exercised with a partner attached.
